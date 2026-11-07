@@ -1,0 +1,40 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Get Proxmox Datacenter Manager settings",
+    "$id": "http://nethserver.org/json-schema/task/output/proxmox-datacenter-manager/get-configuration",
+    "description": "Get Proxmox Datacenter Manager settings",
+    "examples": [
+        {
+            "host": "pdm.domain.org",
+            "http2https": true,
+            "lets_encrypt": true,
+            "admin_password_set": true
+        }
+    ],
+    "type": "object",
+    "required": [
+        "host",
+        "http2https",
+        "lets_encrypt",
+        "admin_password_set"
+    ],
+    "properties": {
+        "host": {
+            "type": "string",
+            "description": "Host name for the application, like 'pdm.domain.org'",
+            "format": "idn-hostname"
+        },
+        "lets_encrypt": {
+            "type": "boolean",
+            "title": "Let's Encrypt certificate"
+        },
+        "http2https": {
+            "type": "boolean",
+            "title": "HTTP to HTTPS redirection"
+        },
+        "admin_password_set": {
+            "type": "boolean",
+            "description": "True if an administrator password has been configured"
+        }
+    }
+}

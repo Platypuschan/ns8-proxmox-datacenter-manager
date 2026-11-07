@@ -1,0 +1,122 @@
+name: Publish tested catalog version
+
+on:
+  workflow_run:
+    workflows: ["Publish images"]
+    types: [completed]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  promote:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - name: Check catalog version
+        run: .github/scripts/check-catalog-version
+      - name: Promote the tested image once
+        shell: bash
+        env:
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          current_sha="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [[ "$current_sha" != "$TESTED_SHA" ]]; then
+            echo 'A newer main commit exists; its test run will publish the version.'
+            exit 0
+          fi
+
+          version="$(tr -d '[:space:]' < CATALOG_VERSION)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid SemVer catalog version: $version" >&2
+            exit 1
+          fi
+
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/proxmox-datacenter-manager"
+          sudo apt-get update -qq
+          sudo apt-get install -y skopeo
+          if skopeo inspect --raw "docker://$image:$version" >/dev/null 2>&1; then
+            # The version check above passed, so only files outside the image
+            # changed since CATALOG_VERSION was set.
+            echo "::notice::$image:$version already exists; no module image change since that release."
+            exit 0
+          fi
+
+          printf '%s' "$REGISTRY_TOKEN" | skopeo login --username "$GITHUB_ACTOR" --password-stdin ghcr.io
+          # Resolve :latest to an immutable digest and make sure it was built
+          # from the tested commit, so a later push cannot be promoted instead.
+          digest="$(skopeo inspect --format '{{.Digest}}' "docker://$image:latest")"
+          revision="$(skopeo inspect --format '{{index .Labels "org.opencontainers.image.revision"}}' "docker://$image@$digest")"
+          if [[ "$revision" != "$TESTED_SHA" ]]; then
+            echo "$image:latest ($digest) was built from '$revision', not $TESTED_SHA; not promoting." >&2
+            exit 1
+          fi
+          skopeo copy --all "docker://$image@$digest" "docker://$image:$version"
+          skopeo inspect --raw "docker://$image:$version" >/dev/null
+          echo "Published $image:$version ($digest) from tested commit $TESTED_SHA" >> "$GITHUB_STEP_SUMMARY"
+      - name: Create the GitHub release of the published version
+        shell: bash
+        env:
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < CATALOG_VERSION)"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/proxmox-datacenter-manager"
+          if gh release view "$version" >/dev/null 2>&1; then
+            echo "Release $version already exists."
+            exit 0
+          fi
+
+          command -v skopeo >/dev/null || { sudo apt-get update -qq; sudo apt-get install -y skopeo; }
+          printf '%s' "$GH_TOKEN" | skopeo login --username "$GITHUB_ACTOR" --password-stdin ghcr.io
+          if ! inspect="$(skopeo inspect "docker://$image:$version" 2>&1)"; then
+            if grep -q 'manifest unknown' <<<"$inspect"; then
+              # A newer main commit exists; its run publishes the version.
+              echo "$image:$version is not published yet; no release."
+              exit 0
+            fi
+            echo "$inspect" >&2
+            exit 1
+          fi
+          # Tag the commit the published image was built from. It differs from
+          # TESTED_SHA when only files outside the image changed since then.
+          revision="$(jq -r '.Labels["org.opencontainers.image.revision"] // ""' <<<"$inspect")"
+          if [[ ! "$revision" =~ ^[0-9a-f]{40}$ ]] || ! git merge-base --is-ancestor "$revision" "$TESTED_SHA"; then
+            echo "$image:$version has revision '$revision', which is not on main; no release." >&2
+            exit 1
+          fi
+          # An annotated tag is listed twice; its peeled "^{}" line comes last.
+          tag_sha="$(git ls-remote --tags origin "refs/tags/$version" \
+            | awk -v ref="refs/tags/$version" '$2 == ref || $2 == ref "^{}" { sha = $1 } END { print sha }')"
+          if [[ -n "$tag_sha" && "$tag_sha" != "$revision" ]]; then
+            echo "Tag $version points to $tag_sha, but $image:$version was built from $revision." >&2
+            exit 1
+          fi
+
+          args=(--target "$revision" --title "$version" --generate-notes)
+          previous="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName // ""')"
+          if [[ -n "$previous" ]]; then
+            args+=(--notes-start-tag "$previous")
+          fi
+          if [[ "$version" == *-* ]]; then
+            args+=(--prerelease)
+          fi
+          # A tag created with GITHUB_TOKEN triggers no workflow, so this does
+          # not rebuild the image; publish-images also skips existing tags.
+          gh release create "$version" "${args[@]}"
+          echo "Created release $version at $revision" >> "$GITHUB_STEP_SUMMARY"
+

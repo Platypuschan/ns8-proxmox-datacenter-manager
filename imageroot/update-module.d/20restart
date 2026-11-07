@@ -1,0 +1,15 @@
+#!/bin/bash
+
+#
+# Copyright (C) 2026 Platypuschan
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+set -e
+
+# Redirect any output to the journal (stderr)
+exec 1>&2
+
+# Load the unit file of the new release before restarting.
+systemctl --user daemon-reload
+systemctl --user try-restart pdm.service

@@ -1,0 +1,56 @@
+name: Update Proxmox Datacenter Manager
+
+# Look for a new Proxmox Datacenter Manager release every week. A new release
+# gets a pull request that raises PDM_VERSION in app/Containerfile and the
+# CATALOG_VERSION; nothing is merged or released automatically.
+
+on:
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Propose the update
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -Eeuo pipefail
+          latest="$(.github/scripts/update-pdm --latest)"
+          current="$(sed -n 's/^ARG PDM_VERSION=//p' app/Containerfile)"
+          echo "Packaged: ${current}; latest in the Proxmox repository: ${latest}"
+          if [[ "$(.github/scripts/update-pdm --apply "${latest}")" == unchanged ]]; then
+            echo "::notice::Already on ${latest}."
+            exit 0
+          fi
+          branch="update-pdm-${latest}"
+          if git ls-remote --exit-code --heads origin "${branch}" >/dev/null 2>&1; then
+            echo "::notice::${branch} already exists."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch --create "${branch}"
+          git commit --all --message "Update Proxmox Datacenter Manager to ${latest}"
+          git push origin "${branch}"
+          gh pr create --base "${DEFAULT_BRANCH}" --head "${branch}" \
+            --title "Update Proxmox Datacenter Manager to ${latest}" \
+            --body "Automatic proposal: PDM ${current} -> ${latest} (app/Containerfile) and a new CATALOG_VERSION. Review the [release notes](https://pdm.proxmox.com/docs/) before merging. Merging publishes a new module version."
+          # Pushes and pull requests created with GITHUB_TOKEN do not start
+          # workflows, so start the checks explicitly.
+          gh workflow run validate.yml --ref "${branch}"
+          gh workflow run publish-images.yml --ref "${branch}"

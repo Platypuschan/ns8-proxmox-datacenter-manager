@@ -1,0 +1,38 @@
+#
+# Copyright (C) 2026 Platypuschan
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+[Unit]
+Description=Proxmox Datacenter Manager (Podman)
+After=network-online.target
+
+[Service]
+Environment=PODMAN_SYSTEMD_UNIT=%n
+EnvironmentFile=%E/state/environment
+WorkingDirectory=%E/state
+Restart=always
+# The entrypoint needs time to stop its daemons cleanly.
+TimeoutStartSec=120
+TimeoutStopSec=140
+ExecStartPre=/bin/rm -f %t/pdm.pid %t/pdm.ctr-id
+# Rootless: the container needs no extra privileges. --tmpfs provides the
+# shared-memory directory of the API. admin.env holds PASSWORD_HASH.
+ExecStart=/usr/bin/podman run --detach \
+    --conmon-pidfile %t/pdm.pid --cidfile %t/pdm.ctr-id --cgroups=no-conmon \
+    --replace --name pdm --hostname pdm \
+    --publish 127.0.0.1:${TCP_PORT}:8443 \
+    --tmpfs /run/proxmox-datacenter-manager/shmem \
+    --volume pdm-config:/etc/proxmox-datacenter-manager:Z \
+    --volume pdm-data:/var/lib/proxmox-datacenter-manager:Z \
+    --env-file %E/state/admin.env \
+    --stop-timeout 120 \
+    ${PDM_APP_IMAGE}
+ExecStop=/usr/bin/podman stop --ignore --cidfile %t/pdm.ctr-id -t 120
+ExecStopPost=/usr/bin/podman rm --ignore -f --cidfile %t/pdm.ctr-id
+SyslogIdentifier=%u
+PIDFile=%t/pdm.pid
+Type=forking
+
+[Install]
+WantedBy=default.target

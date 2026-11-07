@@ -1,0 +1,18 @@
+#!/bin/bash
+
+#
+# Copyright (C) 2026 Platypuschan
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+set -e
+
+# Redirect any output to the journal (stderr)
+exec 1>&2
+
+# If the control reaches this step, the service can be enabled and started
+systemctl --user enable pdm.service
+systemctl --user reset-failed pdm.service
+# Restart on every configuration: a changed password is applied by the
+# container entrypoint at start.
+systemctl --user restart pdm.service
