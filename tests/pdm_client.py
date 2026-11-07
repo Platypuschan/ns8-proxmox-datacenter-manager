@@ -10,7 +10,7 @@ BASE_URL is e.g. https://127.0.0.1:20015 (module port) or http://127.0.0.1
 `api` prints the JSON response body; `shell` opens the node shell through the
 websocket (termproxy + vncwebsocket), runs an echo and prints "ws-ok".
 """
-import base64, json, os, socket, ssl, sys, urllib.error, urllib.parse, urllib.request
+import base64, http.client, json, os, socket, ssl, sys, urllib.parse
 
 COOKIE = "__Host-PDMAuthCookie"
 ctx = ssl.create_default_context()
@@ -18,27 +18,52 @@ ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
 
 
+class HTTPError(Exception):
+    def __init__(self, status, reason, body, headers):
+        super().__init__(f"HTTP {status} {reason}")
+        self.status, self.reason, self.body, self.headers = status, reason, body, headers
+
+
 class Client:
+    """Plain http.client: no proxy environment variables, no redirects."""
+
     def __init__(self, base, host=None):
         self.base, self.host = base.rstrip("/"), host
+        self.url = urllib.parse.urlparse(self.base)
         self.ticket = self.csrf = None
 
+    def connection(self):
+        port = self.url.port or (443 if self.url.scheme == "https" else 80)
+        if self.url.scheme == "https":
+            return http.client.HTTPSConnection(self.url.hostname, port, context=ctx, timeout=20)
+        return http.client.HTTPConnection(self.url.hostname, port, timeout=20)
+
     def call(self, method, path, data=None):
-        body = urllib.parse.urlencode(data).encode() if data is not None else None
-        req = urllib.request.Request(self.base + path, data=body, method=method)
-        if self.host:
-            req.add_header("Host", self.host)
+        """Return (body_text, response headers); raise HTTPError on status >= 400."""
+        body = urllib.parse.urlencode(data) if data is not None else None
+        headers = {"Host": self.host or self.url.netloc, "Connection": "close"}
+        if body is not None:
+            headers["Content-Type"] = "application/x-www-form-urlencoded"
         if self.ticket:
-            req.add_header("Cookie", COOKIE + "=" + urllib.parse.quote(self.ticket, safe=""))
-            req.add_header("CSRFPreventionToken", self.csrf)
-        return urllib.request.urlopen(req, context=ctx, timeout=20)
+            headers["Cookie"] = COOKIE + "=" + urllib.parse.quote(self.ticket, safe="")
+            headers["CSRFPreventionToken"] = self.csrf
+        conn = self.connection()
+        try:
+            conn.request(method, path, body=body, headers=headers)
+            response = conn.getresponse()
+            text = response.read().decode()
+            if response.status >= 400:
+                raise HTTPError(response.status, response.reason, text, dict(response.getheaders()))
+            return text, response.getheaders()
+        finally:
+            conn.close()
 
     def login(self, password):
-        resp = self.call("POST", "/api2/json/access/ticket", {"username": "root@pam", "password": password})
-        self.csrf = json.load(resp)["data"]["CSRFPreventionToken"]
-        for header in resp.headers.get_all("Set-Cookie") or []:
-            if header.startswith(COOKIE + "="):
-                self.ticket = urllib.parse.unquote(header.split(";")[0].split("=", 1)[1])
+        text, headers = self.call("POST", "/api2/json/access/ticket", {"username": "root@pam", "password": password})
+        self.csrf = json.loads(text)["data"]["CSRFPreventionToken"]
+        for name, value in headers:
+            if name.lower() == "set-cookie" and value.startswith(COOKIE + "="):
+                self.ticket = urllib.parse.unquote(value.split(";")[0].split("=", 1)[1])
         if not self.ticket:
             raise SystemExit("login: no ticket cookie")
 
@@ -49,7 +74,7 @@ def frame(payload):
 
 
 def shell(client):
-    session = json.load(client.call("POST", "/api2/json/nodes/localhost/termproxy", {}))["data"]
+    session = json.loads(client.call("POST", "/api2/json/nodes/localhost/termproxy", {})[0])["data"]
     url = urllib.parse.urlparse(client.base)
     port = url.port or (443 if url.scheme == "https" else 80)
     raw = socket.create_connection((url.hostname, port), timeout=15)
@@ -121,20 +146,17 @@ def main(argv):
     client = Client(base, host)
     try:
         client.login(os.environ["PDM_PASSWORD"])
-    except urllib.error.HTTPError as err:
-        raise SystemExit(f"login failed: HTTP {err.code} {err.reason} {err.read().decode()[:200]}")
-    if command == "shell":
-        shell(client)
-    elif command == "api":
+        if command == "shell":
+            shell(client)
+            return
+        if command != "api":
+            raise SystemExit("unknown command")
         method, path = rest[0], rest[1]
         data = dict(item.split("=", 1) for item in rest[2:]) if method != "GET" else None
-        try:
-            print(client.call(method, path, data).read().decode())
-        except urllib.error.HTTPError as err:
-            print(err.read().decode(), file=sys.stderr)
-            raise SystemExit(f"HTTP {err.code} {err.reason} for {err.url} headers={dict(err.headers)} python={sys.version.split()[0]} {ssl.OPENSSL_VERSION}")
-    else:
-        raise SystemExit("unknown command")
+        print(client.call(method, path, data)[0])
+    except HTTPError as err:
+        raise SystemExit(f"{err} body={err.body[:200]!r} headers={err.headers} python={sys.version.split()[0]} {ssl.OPENSSL_VERSION}"
+                         f" proxy_env={[k for k in os.environ if k.lower().endswith('_proxy')]}")
 
 
 if __name__ == "__main__":
