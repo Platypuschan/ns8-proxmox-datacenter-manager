@@ -62,7 +62,7 @@
         "options": {
             "type": "object",
             "title": "First configuration options",
-            "description": "Chosen once at the first configuration; later requests keep the stored values.",
+            "description": "Interface and system options. Can be changed at any time; omit to keep the stored values.",
             "additionalProperties": false,
             "properties": {
                 "tls_import": {

@@ -81,10 +81,7 @@
             </cv-text-input>
             <div class="mg-bottom">
               <h5 class="mg-bottom">{{ $t("settings.first_setup") }}</h5>
-              <p v-if="optionsLocked" class="mg-bottom">
-                {{ $t("settings.first_setup_locked") }}
-              </p>
-              <p v-else class="mg-bottom">
+              <p class="mg-bottom">
                 {{ $t("settings.first_setup_help") }}
               </p>
               <cv-checkbox
@@ -93,7 +90,7 @@
                 :label="$t('settings.opt_' + item.key)"
                 :value="item.key"
                 :checked="isChecked(item)"
-                :disabled="optionsLocked || loading.getConfiguration || loading.configureModule"
+                :disabled="loading.getConfiguration || loading.configureModule"
                 @change="setOption(item, $event)"
               />
             </div>
@@ -167,7 +164,6 @@ export default {
       isHttpToHttpsEnabled: true,
       isPasswordSet: false,
       adminPassword: "",
-      optionsLocked: false,
       options: {
         tls_import: true,
         disable_nag: true,
@@ -268,11 +264,7 @@ export default {
       this.isHttpToHttpsEnabled = config.http2https;
       this.isPasswordSet = config.admin_password_set;
       this.adminPassword = "";
-      this.optionsLocked = config.options_locked;
-      // before the first configuration the pre-selected defaults stay
-      if (config.options_locked) {
-        this.options = config.options;
-      }
+      this.options = config.options;
 
       this.loading.getConfiguration = false;
       this.focusElement("host");
@@ -358,8 +350,7 @@ export default {
             lets_encrypt: this.isLetsEncryptEnabled,
             http2https: this.isHttpToHttpsEnabled,
             admin_password: this.adminPassword,
-            // only used at the first configuration
-            options: this.optionsLocked ? undefined : this.options,
+            options: this.options,
           },
           extra: {
             title: this.$t("settings.instance_configuration"),

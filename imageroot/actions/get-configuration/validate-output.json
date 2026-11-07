@@ -9,7 +9,6 @@
             "http2https": true,
             "lets_encrypt": true,
             "admin_password_set": true,
-            "options_locked": true,
             "options": {
                 "tls_import": true,
                 "disable_nag": true,
@@ -28,8 +27,7 @@
         "http2https",
         "lets_encrypt",
         "admin_password_set",
-        "options",
-        "options_locked"
+        "options"
     ],
     "properties": {
         "host": {
@@ -48,10 +46,6 @@
         "admin_password_set": {
             "type": "boolean",
             "description": "True if an administrator password has been configured"
-        },
-        "options_locked": {
-            "type": "boolean",
-            "description": "True once the first configuration options are stored"
         },
         "options": {
             "type": "object",
