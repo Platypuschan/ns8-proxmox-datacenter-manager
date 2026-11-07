@@ -245,6 +245,13 @@ class StaticTests(unittest.TestCase):
             self.assertIn(needle, unit)
         self.assertIn("127.0.0.1:${TCP_PORT}", unit)
 
+    def test_traefik_roles_cover_routes_and_certificates(self):
+        # set-route needs routeadm, get-certificate needs certadm; a missing role
+        # shows up as HTTP 403 from Traefik at run time.
+        build = (ROOT / "build-images.sh").read_text()
+        self.assertIn("traefik@node:routeadm", build)
+        self.assertIn("traefik@node:certadm", build)
+
     def test_backup_includes_cover_all_state(self):
         text = (ROOT / "imageroot/etc/state-include.conf").read_text()
         lines = [l for l in text.splitlines() if l and not l.startswith("#")]

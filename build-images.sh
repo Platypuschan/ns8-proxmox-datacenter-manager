@@ -57,7 +57,7 @@ buildah config --entrypoint=/ \
 	--label="org.opencontainers.image.source=${repository_source}" \
 	--label="org.opencontainers.image.version=${MODULE_VERSION}" \
 	--label="org.opencontainers.image.revision=${GITHUB_SHA:-$(git rev-parse HEAD 2>/dev/null || echo unknown)}" \
-	--label="org.nethserver.authorizations=traefik@node:routeadm" \
+	--label="org.nethserver.authorizations=traefik@node:routeadm traefik@node:certadm" \
 	--label="org.nethserver.tcp-ports-demand=1" \
 	--label="org.nethserver.rootfull=0" \
 	--label="org.nethserver.min-core=3.22.0" \
