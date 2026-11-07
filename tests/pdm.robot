@@ -55,7 +55,9 @@ Login status
 
 Configure module
     [Arguments]    ${password}
-    ${payload} =    Evaluate    json.dumps({"host": $HOST, "http2https": False, "lets_encrypt": False, "admin_password": $password})    modules=json
+    ${options} =    Create Dictionary    tls_import=${TRUE}    disable_nag=${TRUE}    ns8_layout=${TRUE}    debian_extra=${TRUE}    repo_test=${TRUE}
+    ...    hide_menu=${{["subscription", "registry", "sdn", "ceph"]}}
+    ${payload} =    Evaluate    json.dumps({"host": $HOST, "http2https": False, "lets_encrypt": False, "admin_password": $password, "options": $options})    modules=json
     ${output}    ${rc} =    Execute Command    api-cli run module/${module_id}/configure-module --data '${payload}'
     ...    return_rc=True
     Should Be Equal As Integers    ${rc}    0    configure-module failed: ${output}
@@ -87,6 +89,12 @@ Loopback URL of
     [Arguments]    ${id}
     ${port} =    Module environment    ${id}    TCP_PORT
     RETURN    https://127.0.0.1:${port}
+
+Served certificate is the Traefik certificate
+    ${expected} =    Execute Command    runagent -m ${module_id} openssl x509 -in tls-certs/cert.pem -noout -fingerprint -sha256
+    ${served} =    Execute Command    echo | openssl s_client -connect 127.0.0.1:${web_port} 2>/dev/null | openssl x509 -noout -fingerprint -sha256
+    Should Contain    ${expected}    Fingerprint=
+    Should Be Equal    ${served}    ${expected}
 
 Module answers
     [Arguments]    ${base}
@@ -236,6 +244,48 @@ Data survives a service restart
     Should Contain    ${volumes}    pdm-config
     Should Contain    ${volumes}    pdm-data
     Should Contain    ${volumes}    pdm-log
+
+Options are fixed after the first configuration
+    ${output} =    Execute Command    api-cli run module/${module_id}/get-configuration
+    ${config} =    Evaluate    json.loads(r"""${output}""")["output"]    modules=json
+    Should Be True    ${config}[options_locked]
+    Should Be True    ${config}[options][ns8_layout]
+    Should Be Equal    ${config}[options][hide_menu]    ${{["subscription", "registry", "sdn", "ceph"]}}
+    # a second configuration with other values must not change them
+    ${payload} =    Evaluate    json.dumps({"host": $HOST, "http2https": False, "lets_encrypt": False, "options": {"ns8_layout": False, "hide_menu": []}})    modules=json
+    ${output}    ${rc} =    Execute Command    api-cli run module/${module_id}/configure-module --data '${payload}'
+    ...    return_rc=True
+    Should Be Equal As Integers    ${rc}    0    configure-module failed: ${output}
+    Wait until PDM is up
+    ${output} =    Execute Command    api-cli run module/${module_id}/get-configuration
+    ${config} =    Evaluate    json.loads(r"""${output}""")["output"]    modules=json
+    Should Be True    ${config}[options][ns8_layout]
+    Should Be Equal    ${config}[options][hide_menu]    ${{["subscription", "registry", "sdn", "ceph"]}}
+
+The web interface serves the adjustments
+    ${out} =    Execute Command    curl -ksS --max-time 10 https://127.0.0.1:${web_port}/js/ns8-config.js
+    Should Contain    ${out}    layout: true
+    Should Contain    ${out}    "subscription","registry","sdn","ceph"
+    ${out} =    Execute Command    curl -ksS --max-time 10 https://127.0.0.1:${web_port}/ | grep -c ns8-custom.js
+    Should Be Equal As Integers    ${out}    1
+
+PDM serves the Traefik certificate
+    Wait Until Keyword Succeeds    120 seconds    3 seconds    Served certificate is the Traefik certificate
+
+DNS search domain can be changed in PDM
+    ${base} =    Loopback URL of    ${module_id}
+    ${out} =    PDM api    ${PDM_PASSWORD_2}    ${base}    PUT    /api2/json/nodes/localhost/dns    search=ci.example    dns1=9.9.9.9
+    Should Not Contain    ${out}    Atomic rename
+    ${out} =    PDM api    ${PDM_PASSWORD_2}    ${base}    GET    /api2/json/nodes/localhost/dns
+    Should Contain    ${out}    ci.example
+
+All packages are correctly installed
+    ${base} =    Loopback URL of    ${module_id}
+    ${out} =    PDM api    ${PDM_PASSWORD_2}    ${base}    GET    /api2/json/nodes/localhost/apt/versions
+    ${versions} =    Evaluate    {p["Package"]: p.get("OldVersion") for p in json.loads($out)["data"]}    modules=json
+    FOR    ${package}    IN    proxmox-datacenter-manager-meta    proxmox-datacenter-manager    ifupdown2    proxmox-mail-forward    proxmox-offline-mirror-helper    zfsutils-linux
+        Should Not Be Empty    ${versions}[${package}]    ${package} is not installed
+    END
 
 Service recovers from SIGKILL
     # A backup copies the volumes while PDM runs, which is as consistent as a

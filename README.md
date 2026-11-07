@@ -53,6 +53,48 @@ Log in at `https://<host>` with user name `root`, realm **Linux PAM**
 Read the configuration with `api-cli run module/<id>/get-configuration`. The
 password is never returned, only `admin_password_set`.
 
+### First configuration options
+
+These are chosen once, at the first configuration (check boxes in **Settings**,
+the `options` object of `configure-module`). Afterwards the web interface shows
+them as information only and later requests keep the stored values. They are
+stored in `~/.config/state/options.env` and included in the backup.
+
+- `tls_import`: use the certificate Traefik serves for the host name (Let's
+  Encrypt or custom) as the certificate of PDM, so the *Certificates* page shows
+  it. The module fetches it with the NS8 `get-certificate` helper and refreshes
+  it on every `certificate-changed` event (the container restarts when it
+  changes).
+- `disable_nag`: confirm the "no subscription" dialog automatically (the one
+  that appears for example on *Administration / Updates / Refresh*).
+- `ns8_layout`: menu order Dashboard, Views, Notes, Remotes, Guests,
+  Configuration; the button *Shell* replaces the theme button and
+  *Administration* replaces *Documentation* in the top bar, both removed from
+  the left menu.
+- `hide_menu`: any of `subscription`, `registry`, `sdn`, `ceph` to hide the menu
+  entry.
+- `debian_extra`: add the Debian components `contrib` and `non-free-firmware`.
+- `repo_test`: add the `pdm-test` repository, disabled.
+
+The menu changes are made by a small script (`app/ns8-custom.js`) that the image
+adds to the PDM web interface. It only changes attributes and styles of existing
+elements; a PDM update that renames its CSS classes can make it stop working,
+and then PDM simply shows its normal interface.
+
+### Container specifics
+
+- `/etc/resolv.conf` is a bind mount in the container; PDM's atomic rename onto
+  it failed with "Device or resource busy". A small preload library
+  (`app/ns8-rename-shim.c`) writes in place instead and keeps the value in the
+  `pdm-config` volume, so DNS settings entered in PDM survive restarts.
+- The packages PDM lists under *Package Versions* are installed in the image
+  (`ifupdown2`, `proxmox-mail-forward`, `proxmox-offline-mirror-helper`,
+  `zfsutils-linux`). `proxmox-datacenter-manager-meta` is a placeholder without
+  the kernel and init dependencies of the original. PDM itself is held and is
+  updated with the module, not with *Upgrade* in the interface.
+- Package upgrades started in the interface run non-interactively (no debconf
+  messages).
+
 ### Notes on the administrator password
 
 The container applies the password at every start, from a SHA-512 hash stored in

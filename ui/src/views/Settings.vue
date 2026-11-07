@@ -79,6 +79,24 @@
               ref="admin_password"
             >
             </cv-text-input>
+            <div class="mg-bottom">
+              <h5 class="mg-bottom">{{ $t("settings.first_setup") }}</h5>
+              <p v-if="optionsLocked" class="mg-bottom">
+                {{ $t("settings.first_setup_locked") }}
+              </p>
+              <p v-else class="mg-bottom">
+                {{ $t("settings.first_setup_help") }}
+              </p>
+              <cv-checkbox
+                v-for="item in optionItems"
+                :key="item.key"
+                :label="$t('settings.opt_' + item.key)"
+                :value="item.key"
+                :checked="isChecked(item)"
+                :disabled="optionsLocked || loading.getConfiguration || loading.configureModule"
+                @change="setOption(item, $event)"
+              />
+            </div>
             <cv-row v-if="error.configureModule">
               <cv-column>
                 <NsInlineNotification
@@ -149,6 +167,26 @@ export default {
       isHttpToHttpsEnabled: true,
       isPasswordSet: false,
       adminPassword: "",
+      optionsLocked: false,
+      options: {
+        tls_import: true,
+        disable_nag: true,
+        ns8_layout: true,
+        repo_test: false,
+        debian_extra: true,
+        hide_menu: ["subscription", "registry", "sdn", "ceph"],
+      },
+      optionItems: [
+        { key: "tls_import" },
+        { key: "disable_nag" },
+        { key: "ns8_layout" },
+        { key: "debian_extra" },
+        { key: "repo_test" },
+        { key: "hide_subscription", hide: "subscription" },
+        { key: "hide_registry", hide: "registry" },
+        { key: "hide_sdn", hide: "sdn" },
+        { key: "hide_ceph", hide: "ceph" },
+      ],
       loading: {
         getConfiguration: false,
         configureModule: false,
@@ -230,9 +268,27 @@ export default {
       this.isHttpToHttpsEnabled = config.http2https;
       this.isPasswordSet = config.admin_password_set;
       this.adminPassword = "";
+      this.optionsLocked = config.options_locked;
+      // before the first configuration the pre-selected defaults stay
+      if (config.options_locked) {
+        this.options = config.options;
+      }
 
       this.loading.getConfiguration = false;
       this.focusElement("host");
+    },
+    isChecked(item) {
+      return item.hide
+        ? this.options.hide_menu.includes(item.hide)
+        : !!this.options[item.key];
+    },
+    setOption(item, checked) {
+      if (item.hide) {
+        const rest = this.options.hide_menu.filter((h) => h !== item.hide);
+        this.options.hide_menu = checked ? [...rest, item.hide] : rest;
+      } else {
+        this.options[item.key] = checked;
+      }
     },
     validateConfigureModule() {
       this.clearErrors(this);
@@ -302,6 +358,8 @@ export default {
             lets_encrypt: this.isLetsEncryptEnabled,
             http2https: this.isHttpToHttpsEnabled,
             admin_password: this.adminPassword,
+            // only used at the first configuration
+            options: this.optionsLocked ? undefined : this.options,
           },
           extra: {
             title: this.$t("settings.instance_configuration"),

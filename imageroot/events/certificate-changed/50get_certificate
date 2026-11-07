@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 Platypuschan
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "pypkg"))
+import agent
+import pdm_options
+
+event = json.load(sys.stdin)
+host = os.environ.get("TRAEFIK_HOST", "")
+options = pdm_options.read_options() or {}
+
+if not host or not options.get("tls_import") or not agent.certificate_event_matches(event, host):
+    sys.exit(0)  # not relevant for this instance
+
+proc = agent.run_helper("get-certificate", "--cert-file=tls-certs/cert.pem",
+                        "--key-file=tls-certs/key.pem", host)
+# 0 = new certificate, 3 = unchanged. The container reads it at start only.
+if proc.returncode == 0:
+    agent.run_helper("systemctl", "--user", "try-restart", "pdm.service")

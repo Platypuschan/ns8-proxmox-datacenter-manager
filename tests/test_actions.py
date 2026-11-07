@@ -14,7 +14,8 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 ACTIONS = ROOT / "imageroot/actions"
 sys.path.insert(0, str(ROOT / "imageroot/pypkg"))
-import pdm_config  # noqa: E402
+import pdm_config
+import pdm_options  # noqa: E402
 
 
 class FakeAgent(types.ModuleType):
@@ -216,10 +217,17 @@ class ReadTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             env = {"TRAEFIK_HOST": "pdm.example.org", "TRAEFIK_HTTP2HTTPS": "True", "TRAEFIK_LETS_ENCRYPT": "False"}
             _, _, out = run(READ, d, None, env)
-            self.assertEqual(json.loads(out), {
+            result = json.loads(out)
+            self.assertFalse(result["options_locked"])
+            self.assertTrue(result["options"]["tls_import"])
+            self.assertEqual({k: v for k, v in result.items() if k not in ("options", "options_locked")}, {
                 "host": "pdm.example.org", "http2https": True,
                 "lets_encrypt": False, "admin_password_set": False,
             })
+            pdm_options.write_options({"ns8_layout": True}, d)
+            _, _, out = run(READ, d, None, env)
+            self.assertTrue(json.loads(out)["options_locked"])
+            self.assertTrue(json.loads(out)["options"]["ns8_layout"])
             pdm_config.write_admin_password("long-enough-pass", d)
             _, _, out = run(READ, d, None, env)
             self.assertTrue(json.loads(out)["admin_password_set"])
@@ -240,7 +248,7 @@ class StaticTests(unittest.TestCase):
     def test_backup_includes_cover_all_state(self):
         text = (ROOT / "imageroot/etc/state-include.conf").read_text()
         lines = [l for l in text.splitlines() if l and not l.startswith("#")]
-        self.assertEqual(sorted(lines), ["state/admin.env", "volumes/pdm-config", "volumes/pdm-data", "volumes/pdm-log"])
+        self.assertEqual(sorted(lines), ["state/admin.env", "state/options.env", "volumes/pdm-config", "volumes/pdm-data", "volumes/pdm-log"])
         unit = (ROOT / "imageroot/systemd/user/pdm.service").read_text()
         for line in lines:
             if line.startswith("volumes/"):

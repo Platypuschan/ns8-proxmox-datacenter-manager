@@ -15,6 +15,8 @@ Restart=always
 TimeoutStartSec=120
 TimeoutStopSec=140
 ExecStartPre=/bin/rm -f %t/pdm.pid %t/pdm.ctr-id
+# options.env: first-configuration choices; tls-certs: certificate of Traefik
+ExecStartPre=/bin/sh -c 'touch %E/state/options.env; mkdir -p -m 0700 %E/state/tls-certs'
 # Rootless: the container needs no extra privileges. --tmpfs provides the
 # shared-memory directory of the API. admin.env holds PASSWORD_HASH.
 ExecStart=/usr/bin/podman run --detach \
@@ -25,7 +27,9 @@ ExecStart=/usr/bin/podman run --detach \
     --volume pdm-config:/etc/proxmox-datacenter-manager:Z \
     --volume pdm-data:/var/lib/proxmox-datacenter-manager:Z \
     --volume pdm-log:/var/log/proxmox-datacenter-manager:Z \
+    --volume %E/state/tls-certs:/run/ns8-tls:ro,Z \
     --env-file %E/state/admin.env \
+    --env-file %E/state/options.env \
     --stop-timeout 120 \
     ${PDM_APP_IMAGE}
 ExecStop=/usr/bin/podman stop --ignore --cidfile %t/pdm.ctr-id -t 120

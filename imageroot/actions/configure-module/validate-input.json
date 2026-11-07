@@ -8,7 +8,20 @@
             "host": "pdm.domain.org",
             "http2https": true,
             "lets_encrypt": true,
-            "admin_password": "a-long-secret"
+            "admin_password": "a-long-secret",
+            "options": {
+                "tls_import": true,
+                "disable_nag": true,
+                "ns8_layout": true,
+                "hide_menu": [
+                    "subscription",
+                    "registry",
+                    "sdn",
+                    "ceph"
+                ],
+                "repo_test": false,
+                "debian_extra": false
+            }
         }
     ],
     "type": "object",
@@ -45,6 +58,51 @@
             "title": "Administrator password",
             "description": "Password of the PAM user root (login root@pam). Required for the first configuration; an empty value keeps the current password.",
             "maxLength": 128
+        },
+        "options": {
+            "type": "object",
+            "title": "First configuration options",
+            "description": "Chosen once at the first configuration; later requests keep the stored values.",
+            "additionalProperties": false,
+            "properties": {
+                "tls_import": {
+                    "type": "boolean",
+                    "title": "Use the Traefik certificate",
+                    "description": "Install the certificate Traefik serves for the host name in the Certificates page of Proxmox Datacenter Manager."
+                },
+                "disable_nag": {
+                    "type": "boolean",
+                    "title": "Confirm the subscription notice",
+                    "description": "Confirm the 'no subscription' dialog automatically."
+                },
+                "ns8_layout": {
+                    "type": "boolean",
+                    "title": "NS8 layout",
+                    "description": "Menu order Dashboard, Views, Notes, Remotes, Guests, Configuration; Shell and Administration in the top bar."
+                },
+                "hide_menu": {
+                    "type": "array",
+                    "title": "Hidden menu entries",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "subscription",
+                            "registry",
+                            "sdn",
+                            "ceph"
+                        ]
+                    },
+                    "uniqueItems": true
+                },
+                "repo_test": {
+                    "type": "boolean",
+                    "title": "Add the pdm-test repository (disabled)"
+                },
+                "debian_extra": {
+                    "type": "boolean",
+                    "title": "Add the Debian components contrib and non-free-firmware"
+                }
+            }
         }
     }
 }
