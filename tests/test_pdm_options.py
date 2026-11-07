@@ -13,8 +13,10 @@ class NormalizeTests(unittest.TestCase):
     def test_defaults_when_absent(self):
         values = pdm_options.normalize(None)
         self.assertTrue(values["tls_import"])
-        self.assertFalse(values["disable_nag"])
-        self.assertEqual(values["hide_menu"], [])
+        self.assertTrue(values["ns8_layout"])
+        self.assertTrue(values["disable_nag"])
+        self.assertFalse(values["repo_test"])
+        self.assertEqual(values["hide_menu"], ["subscription", "registry", "sdn", "ceph"])
 
     def test_partial_request_keeps_defaults(self):
         values = pdm_options.normalize({"disable_nag": True, "hide_menu": ["ceph", "sdn"]})
@@ -40,7 +42,7 @@ class StoreTests(unittest.TestCase):
             self.assertEqual(pdm_options.read_options(d), written)
             text = Path(d, "options.env").read_text()
             self.assertIn("PDM_NS8_LAYOUT=1\n", text)
-            self.assertIn("PDM_DISABLE_NAG=0\n", text)
+            self.assertIn("PDM_REPO_TEST=0\n", text)
             self.assertIn("PDM_HIDE_MENU=subscription,registry\n", text)
             self.assertFalse(Path(d, "options.env.tmp").exists())
 

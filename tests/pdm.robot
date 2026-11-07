@@ -250,22 +250,29 @@ Data survives a service restart
     Should Contain    ${volumes}    pdm-data
     Should Contain    ${volumes}    pdm-log
 
-Options are fixed after the first configuration
+Options can be changed after the first configuration
     ${output} =    Execute Command    api-cli run module/${module_id}/get-configuration
     ${config} =    Evaluate    json.loads(r"""${output}""")    modules=json
-    Should Be True    ${config}[options_locked]
     Should Be True    ${config}[options][ns8_layout]
     Should Be Equal    ${config}[options][hide_menu]    ${{["subscription", "registry", "sdn", "ceph"]}}
-    # a second configuration with other values must not change them
-    ${payload} =    Evaluate    json.dumps({"host": $HOST, "http2https": False, "lets_encrypt": False, "options": {"ns8_layout": False, "hide_menu": []}})    modules=json
+    ${payload} =    Evaluate    json.dumps({"host": $HOST, "http2https": False, "lets_encrypt": False, "options": {"ns8_layout": False, "hide_menu": ["sdn"]}})    modules=json
     ${output}    ${rc} =    Execute Command    api-cli run module/${module_id}/configure-module --data '${payload}'
     ...    return_rc=True
     Should Be Equal As Integers    ${rc}    0    configure-module failed: ${output}
     Wait until PDM is up
     ${output} =    Execute Command    api-cli run module/${module_id}/get-configuration
     ${config} =    Evaluate    json.loads(r"""${output}""")    modules=json
-    Should Be True    ${config}[options][ns8_layout]
-    Should Be Equal    ${config}[options][hide_menu]    ${{["subscription", "registry", "sdn", "ceph"]}}
+    Should Not Be True    ${config}[options][ns8_layout]
+    Should Be Equal    ${config}[options][hide_menu]    ${{["sdn"]}}
+    ${out} =    Execute Command    curl -ksS --max-time 10 https://127.0.0.1:${web_port}/js/ns8-config.js
+    Should Contain    ${out}    layout: false
+    Should Contain    ${out}    hide: ["sdn"]
+    # back to the values the following tests expect
+    ${payload} =    Evaluate    json.dumps({"host": $HOST, "http2https": False, "lets_encrypt": False, "options": {"tls_import": True, "disable_nag": True, "ns8_layout": True, "debian_extra": True, "repo_test": True, "hide_menu": ["subscription", "registry", "sdn", "ceph"]}})    modules=json
+    ${output}    ${rc} =    Execute Command    api-cli run module/${module_id}/configure-module --data '${payload}'
+    ...    return_rc=True
+    Should Be Equal As Integers    ${rc}    0    configure-module failed: ${output}
+    Wait until PDM is up
 
 The web interface serves the adjustments
     ${out} =    Execute Command    curl -ksS --max-time 10 https://127.0.0.1:${web_port}/js/ns8-config.js

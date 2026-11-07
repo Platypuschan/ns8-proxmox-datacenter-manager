@@ -87,6 +87,7 @@ VALIDATE = ACTIONS / "configure-module/02validate_admin_password"
 WRITE = ACTIONS / "configure-module/10configure_admin_password"
 TRAEFIK = ACTIONS / "configure-module/20configure_traefik"
 READ = ACTIONS / "get-configuration/20read"
+OPTIONS = ACTIONS / "configure-module/30configure_options"
 
 
 class ValidateTests(unittest.TestCase):
@@ -212,21 +213,54 @@ class RouteSharingTests(unittest.TestCase):
             self.assertTrue(fake.dumped)
 
 
+class OptionsActionTests(unittest.TestCase):
+    def marker(self, d):
+        return os.path.exists(os.path.join(d, pdm_config.RESTART_MARKER))
+
+    def test_first_configuration_without_options_stores_defaults(self):
+        with tempfile.TemporaryDirectory() as d:
+            run(OPTIONS, d, {}, ENV)
+            self.assertEqual(pdm_options.read_options(d), pdm_options.normalize(None))
+
+    def test_options_can_be_changed_later_and_restart_the_service(self):
+        with tempfile.TemporaryDirectory() as d:
+            run(OPTIONS, d, {"options": {"ns8_layout": True}}, ENV)
+            os.unlink(os.path.join(d, pdm_config.RESTART_MARKER))
+            run(OPTIONS, d, {"options": {"ns8_layout": False, "hide_menu": ["ceph"]}}, ENV)
+            stored = pdm_options.read_options(d)
+            self.assertFalse(stored["ns8_layout"])
+            self.assertEqual(stored["hide_menu"], ["ceph"])
+            self.assertTrue(self.marker(d))
+
+    def test_unchanged_or_absent_options_do_not_restart(self):
+        with tempfile.TemporaryDirectory() as d:
+            run(OPTIONS, d, {"options": {"ns8_layout": False}}, ENV)
+            os.unlink(os.path.join(d, pdm_config.RESTART_MARKER))
+            run(OPTIONS, d, {"options": {"ns8_layout": False}}, ENV)
+            run(OPTIONS, d, {}, ENV)
+            self.assertFalse(self.marker(d))
+            self.assertFalse(pdm_options.read_options(d)["ns8_layout"])
+
+    def test_empty_file_from_the_unit_counts_as_not_stored(self):
+        with tempfile.TemporaryDirectory() as d:
+            open(os.path.join(d, "options.env"), "w").close()
+            run(OPTIONS, d, {}, ENV)
+            self.assertEqual(pdm_options.read_options(d), pdm_options.normalize(None))
+
+
 class ReadTests(unittest.TestCase):
     def test_never_returns_password(self):
         with tempfile.TemporaryDirectory() as d:
             env = {"TRAEFIK_HOST": "pdm.example.org", "TRAEFIK_HTTP2HTTPS": "True", "TRAEFIK_LETS_ENCRYPT": "False"}
             _, _, out = run(READ, d, None, env)
             result = json.loads(out)
-            self.assertFalse(result["options_locked"])
             self.assertTrue(result["options"]["tls_import"])
-            self.assertEqual({k: v for k, v in result.items() if k not in ("options", "options_locked")}, {
+            self.assertEqual({k: v for k, v in result.items() if k != "options"}, {
                 "host": "pdm.example.org", "http2https": True,
                 "lets_encrypt": False, "admin_password_set": False,
             })
             pdm_options.write_options({"ns8_layout": True}, d)
             _, _, out = run(READ, d, None, env)
-            self.assertTrue(json.loads(out)["options_locked"])
             self.assertTrue(json.loads(out)["options"]["ns8_layout"])
             pdm_config.write_admin_password("long-enough-pass", d)
             _, _, out = run(READ, d, None, env)

@@ -22,11 +22,7 @@ config = {
     "admin_password_set": pdm_config.has_admin_password(),
 }
 
-# None until the first configuration is saved; the web interface then shows
-# the values as information only.
-config["options"] = pdm_options.read_options()
-config["options_locked"] = config["options"] is not None
-if config["options"] is None:
-    config["options"] = pdm_options.normalize(None)
+# The stored options, or the defaults while none are stored.
+config["options"] = pdm_options.read_options() or pdm_options.normalize(None)
 
 json.dump(config, fp=sys.stdout)

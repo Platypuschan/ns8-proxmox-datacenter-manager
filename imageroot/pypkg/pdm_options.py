@@ -21,9 +21,11 @@ FLAGS = (
     ("repo_test", "PDM_REPO_TEST"),
     ("debian_extra", "PDM_DEBIAN_EXTRA"),
 )
-# Used when a request carries no "options" object (API use, restore of older backups).
-DEFAULTS = {"tls_import": True, "disable_nag": False, "ns8_layout": False,
-            "repo_test": False, "debian_extra": False, "hide_menu": []}
+# Used when no options are stored (existing installations after an update, API
+# requests without "options"). They equal the pre-selected check boxes of the
+# settings page and the defaults of app/entrypoint.sh.
+DEFAULTS = {"tls_import": True, "disable_nag": True, "ns8_layout": True,
+            "repo_test": False, "debian_extra": True, "hide_menu": list(HIDE_CHOICES)}
 
 
 class OptionsError(ValueError):

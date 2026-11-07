@@ -53,12 +53,16 @@ Log in at `https://<host>` with user name `root`, realm **Linux PAM**
 Read the configuration with `api-cli run module/<id>/get-configuration`. The
 password is never returned, only `admin_password_set`.
 
-### First configuration options
+### Options
 
-These are chosen once, at the first configuration (check boxes in **Settings**,
-the `options` object of `configure-module`). Afterwards the web interface shows
-them as information only and later requests keep the stored values. They are
-stored in `~/.config/state/options.env` and included in the backup.
+These can be changed at any time (check boxes in **Settings**, the `options`
+object of `configure-module`). They are stored in `~/.config/state/options.env`
+and included in the backup. A change restarts the service when you save; reload
+the Proxmox page with Ctrl+F5 afterwards. A request without `options` keeps the
+stored values. As long as nothing is stored (for example on an installation
+updated from an older release) the pre-selected defaults apply: Traefik
+certificate, subscription notice, NS8 layout, Debian extra components on, all
+four menu entries hidden, pdm-test repository off.
 
 - `tls_import`: use the certificate Traefik serves for the host name (Let's
   Encrypt or custom) as the certificate of PDM, so the *Certificates* page shows

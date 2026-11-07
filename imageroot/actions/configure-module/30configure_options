@@ -10,11 +10,22 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "pypkg"))
+import pdm_config
 import pdm_options
 
 data = json.load(sys.stdin)
 
-# The options are chosen once, at the first configuration. Later requests
-# keep the stored values (the web interface shows them as information only).
-if not pdm_options.options_exist():
-    pdm_options.write_options(data.get("options"))
+# Options can be changed at any time. A request without "options" keeps the
+# stored values (or the defaults at the first configuration). The container
+# reads them at start, so a change restarts a running service (80start_services).
+current = pdm_options.read_options()
+if data.get("options") is not None:
+    wanted = pdm_options.normalize(data["options"])
+elif current is None:
+    wanted = pdm_options.normalize(None)
+else:
+    wanted = current
+
+if wanted != current:
+    pdm_options.write_options(wanted)
+    open(pdm_config.RESTART_MARKER, "w").close()
