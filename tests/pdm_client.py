@@ -45,7 +45,7 @@ class Client:
         if body is not None:
             headers["Content-Type"] = "application/x-www-form-urlencoded"
         if self.ticket:
-            headers["Cookie"] = COOKIE + "=" + urllib.parse.quote(self.ticket, safe="")
+            headers["Cookie"] = COOKIE + "=" + self.ticket  # the value exactly as the server sent it
             headers["CSRFPreventionToken"] = self.csrf
         conn = self.connection()
         try:
@@ -63,7 +63,7 @@ class Client:
         self.csrf = json.loads(text)["data"]["CSRFPreventionToken"]
         for name, value in headers:
             if name.lower() == "set-cookie" and value.startswith(COOKIE + "="):
-                self.ticket = urllib.parse.unquote(value.split(";")[0].split("=", 1)[1])
+                self.ticket = value.split(";")[0].split("=", 1)[1]
         if not self.ticket:
             raise SystemExit("login: no ticket cookie")
 
@@ -85,7 +85,7 @@ def shell(client):
         f"Host: {client.host or url.netloc}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
         f"Sec-WebSocket-Key: {base64.b64encode(os.urandom(16)).decode()}\r\nSec-WebSocket-Version: 13\r\n"
         f"Sec-WebSocket-Protocol: binary\r\n"
-        f"Cookie: {COOKIE}={urllib.parse.quote(client.ticket, safe='')}\r\n\r\n").encode())
+        f"Cookie: {COOKIE}={client.ticket}\r\n\r\n").encode())
     head = b""
     while b"\r\n\r\n" not in head:
         chunk = sock.recv(4096)
