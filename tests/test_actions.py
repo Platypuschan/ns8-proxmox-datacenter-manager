@@ -43,6 +43,11 @@ class FakeAgent(types.ModuleType):
     def dump_env(self):
         self.dumped = True
 
+    route_in_use = False
+
+    def http_route_in_use(self, **kwargs):
+        return self.route_in_use
+
     def resolve_agent_id(self, name):
         return "module/traefik1"
 
@@ -153,6 +158,55 @@ class TraefikTests(unittest.TestCase):
             self.assertEqual(call["data"]["url"], "https://127.0.0.1:20015")
             self.assertIs(call["data"]["skip_cert_verify"], True)
             self.assertEqual(call["data"]["instance"], "pdm1")
+            self.assertEqual(fake.environment["TRAEFIK_HOST"], "pdm.example.org")
+            self.assertTrue(fake.dumped)
+
+
+CLONE = ACTIONS / "clone-module/50Traefik"
+RESTORE = ACTIONS / "restore-module/50traefik"
+ENV = {"MODULE_ID": "pdm2", "AGENT_ID": "module/pdm2", "TCP_PORT": "20016", "TRAEFIK_HOST": "pdm.example.org",
+       "TRAEFIK_HTTP2HTTPS": "True", "TRAEFIK_LETS_ENCRYPT": "False"}
+
+
+class RouteSharingTests(unittest.TestCase):
+    def run_with(self, action, payload, route_in_use):
+        with tempfile.TemporaryDirectory() as d:
+            FakeAgent.route_in_use = route_in_use
+            try:
+                return run(action, d, payload, ENV)
+            finally:
+                FakeAgent.route_in_use = False
+
+    def configure_data(self, fake):
+        call = fake.task_calls[0]
+        self.assertEqual(call["action"], "configure-module")
+        return call["data"]
+
+    def test_clone_next_to_source_does_not_register_the_route(self):
+        _, fake, _ = self.run_with(CLONE, {"replace": False}, route_in_use=True)
+        self.assertIs(self.configure_data(fake)["register_route"], False)
+
+    def test_clone_that_replaces_the_source_takes_the_route(self):
+        _, fake, _ = self.run_with(CLONE, {"replace": True}, route_in_use=True)
+        self.assertIs(self.configure_data(fake)["register_route"], True)
+
+    def test_clone_with_a_free_host_registers_the_route(self):
+        _, fake, _ = self.run_with(CLONE, {"replace": False}, route_in_use=False)
+        self.assertIs(self.configure_data(fake)["register_route"], True)
+
+    def test_restore_follows_the_same_rule(self):
+        env = {"TRAEFIK_HOST": "pdm.example.org", "TRAEFIK_HTTP2HTTPS": "True", "TRAEFIK_LETS_ENCRYPT": "False"}
+        for replace, in_use, expected in ((False, True, False), (True, True, True), (False, False, True)):
+            with self.subTest(replace=replace, in_use=in_use):
+                _, fake, _ = self.run_with(RESTORE, {"environment": env, "replace": replace}, in_use)
+                self.assertIs(self.configure_data(fake)["register_route"], expected)
+
+    def test_configure_without_route_saves_settings_but_sets_no_route(self):
+        with tempfile.TemporaryDirectory() as d:
+            code, fake, _ = run(TRAEFIK, d, {"host": "pdm.example.org", "http2https": True,
+                                             "lets_encrypt": False, "register_route": False}, ENV)
+            self.assertEqual(code, 0)
+            self.assertEqual(fake.task_calls, [])
             self.assertEqual(fake.environment["TRAEFIK_HOST"], "pdm.example.org")
             self.assertTrue(fake.dumped)
 

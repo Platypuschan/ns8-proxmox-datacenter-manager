@@ -16,6 +16,7 @@ data = json.load(sys.stdin)
 host = data.get("host")
 h2hs = data.get("http2https", True)
 le = data.get("lets_encrypt", False)
+register_route = data.get("register_route", True)
 
 agent.set_env("TRAEFIK_HOST", host)
 agent.set_env("TRAEFIK_HTTP2HTTPS", h2hs)
@@ -24,6 +25,11 @@ agent.set_env("TRAEFIK_LETS_ENCRYPT", le)
 # Make sure everything is saved inside the environment file
 # just before starting systemd unit
 agent.dump_env()
+
+if not register_route:
+    print("Route not registered: the host name is served by another instance. "
+          "Set a different host name in the settings of this instance.", file=sys.stderr)
+    sys.exit(0)
 
 default_traefik_id = agent.resolve_agent_id('traefik@node')
 if default_traefik_id is None:

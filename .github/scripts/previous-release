@@ -4,7 +4,8 @@
 
 """Print the published release that the update test starts from.
 
-This is the newest stable SemVer tag of IMAGE that is not newer than
+This is the newest stable SemVer tag of IMAGE (or, while the module has no
+stable release yet, the newest pre-release) that is not newer than
 CATALOG_VERSION, i.e. the version a Software Center user runs before updating
 to the image under test. If CATALOG_VERSION itself is already published (a
 change outside the module image keeps the version), that release is used.
@@ -36,8 +37,10 @@ def load_version_module():
 version = load_version_module()
 
 
-def newest_release(tags, current):
-    """Return the newest stable tag that is not newer than current, or None."""
+def newest_release(tags, current, stable_only=True):
+    """Return the newest tag that is not newer than current, or None.
+
+    Only stable releases count unless stable_only is False."""
     limit = version.parse_version(current)
     released = []
     for tag in tags:
@@ -45,8 +48,8 @@ def newest_release(tags, current):
             key = version.parse_version(tag)
         except version.VersionError:
             continue
-        # Stable releases only: those are what the catalog offers by default.
-        if key[3] == 1 and key <= limit:
+        # Stable releases are what the catalog offers by default.
+        if (key[3] == 1 or not stable_only) and key <= limit:
             released.append((key, tag))
     return max(released)[1] if released else None
 
@@ -71,7 +74,8 @@ def main():
     parser.add_argument("image", help="image name without tag, e.g. ghcr.io/owner/module")
     args = parser.parse_args()
     current = (ROOT / "CATALOG_VERSION").read_text(encoding="utf-8").strip()
-    tag = newest_release(registry_tags(args.image), current)
+    tags = registry_tags(args.image)
+    tag = newest_release(tags, current) or newest_release(tags, current, stable_only=False)
     if tag is None:
         print(f"No published release of {args.image} up to {current}", file=sys.stderr)
         return 1

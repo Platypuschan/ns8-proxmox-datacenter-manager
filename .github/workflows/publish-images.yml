@@ -95,9 +95,7 @@ jobs:
       fail-fast: false
       matrix:
         distro: [rocky9, debian13]
-        # update needs a published stable release as the starting point;
-        # add it to the matrix after the first stable release
-        scenario: [install]
+        scenario: [install, update]
     # statuses: write lets each leg report continuous-integration/qemu/<distro>-<scenario>.
     permissions:
       contents: read

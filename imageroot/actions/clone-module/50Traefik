@@ -5,12 +5,24 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-import agent
+import json
 import os
+import sys
+
+import agent
+import agent.tasks
+
+# "replace": true removes the source after the clone, so the clone takes over
+# its host name. A plain copy must not: two instances with the same host name
+# would share one Traefik route.
+request = json.load(sys.stdin)
+host = os.environ["TRAEFIK_HOST"]
+register_route = bool(request.get("replace")) or not agent.http_route_in_use(domain=host)
 
 configure_retval = agent.tasks.run(agent_id=os.environ['AGENT_ID'], action='configure-module', data={
     "lets_encrypt": os.environ["TRAEFIK_LETS_ENCRYPT"] == "True",
-    "host": os.environ["TRAEFIK_HOST"],
+    "host": host,
     "http2https": os.environ["TRAEFIK_HTTP2HTTPS"] == "True",
+    "register_route": register_route,
 })
 agent.assert_exp(configure_retval['exit_code'] == 0, "The configure-module subtask failed!")

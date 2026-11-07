@@ -34,6 +34,12 @@
             "title": "HTTP to HTTPS redirection",
             "description": "Redirect all the HTTP requests to HTTPS"
         },
+        "register_route": {
+            "type": "boolean",
+            "title": "Register the Traefik route",
+            "description": "Internal. Clone and restore set this to false when another instance already serves the host name, so a copy does not take over its route.",
+            "default": true
+        },
         "admin_password": {
             "type": "string",
             "title": "Administrator password",
