@@ -64,7 +64,7 @@ PDM client
     [Documentation]    Run tests/pdm_client.py on the node: BASE is the PDM URL, HOST an optional Host header.
     [Arguments]    ${password}    ${base}    ${command}    @{args}    ${host}=${EMPTY}
     ${hostopt} =    Set Variable If    '${host}' != ''    --host ${host}    ${EMPTY}
-    ${output}    ${error}    ${rc} =    Execute Command    PDM_PASSWORD='${password}' python3 -I /tmp/pdm_client.py ${hostopt} ${base} ${command} @{args}
+    ${output}    ${error}    ${rc} =    Execute Command    PDM_PASSWORD='${password}' python3 -I /tmp/pdm_client.py ${hostopt} ${base} ${command}
     ...    return_stderr=True    return_rc=True
     Should Be Equal As Integers    ${rc}    0    pdm_client ${command} ${base} failed: ${output} ${error}
     RETURN    ${output}
@@ -72,7 +72,8 @@ PDM client
 PDM api
     [Documentation]    Authenticated API call with curl (tests/pdm_api.sh). Extra arguments are key=value pairs.
     [Arguments]    ${password}    ${base}    ${method}    ${path}    @{pairs}    ${host}=${EMPTY}
-    ${output}    ${error}    ${rc} =    Execute Command    PDM_HOST='${host}' PDM_PASSWORD='${password}' bash /tmp/pdm_api.sh ${base} ${method} ${path} @{pairs}
+    ${quoted} =    Evaluate    ' '.join(shlex.quote(p) for p in $pairs)    modules=shlex
+    ${output}    ${error}    ${rc} =    Execute Command    PDM_HOST='${host}' PDM_PASSWORD='${password}' bash /tmp/pdm_api.sh ${base} ${method} ${path} ${quoted}
     ...    return_stderr=True    return_rc=True
     Should Be Equal As Integers    ${rc}    0    ${method} ${path} on ${base} failed: ${output} ${error}
     RETURN    ${output}
