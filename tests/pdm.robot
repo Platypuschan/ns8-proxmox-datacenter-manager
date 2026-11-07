@@ -312,7 +312,13 @@ A renewed Traefik certificate reaches PDM
     ...    return_rc=True
     Execute Command    rm -f /usr/local/share/ca-certificates/pdm-ci-ca.crt /etc/pki/ca-trust/source/anchors/pdm-ci-ca.crt; (update-ca-certificates --fresh || update-ca-trust) >/dev/null 2>&1
     Should Be Equal As Integers    ${rc}    0    upload-certificate failed: ${output}
-    Wait Until Keyword Succeeds    180 seconds    5 seconds    Served certificate has fingerprint    ${expected.strip()}
+    TRY
+        Wait Until Keyword Succeeds    180 seconds    5 seconds    Served certificate has fingerprint    ${expected.strip()}
+    EXCEPT    AS    ${message}
+        ${diag} =    Execute Command    echo "--- expected ${expected}"; echo "--- tls-certs:"; runagent -m ${module_id} sh -c 'ls -la tls-certs; openssl x509 -in tls-certs/cert.pem -noout -subject -fingerprint -sha256; ls -la ../events 2>&1; ls -la ../../imageroot/events/certificate-changed 2>&1' 2>&1; echo "--- agent journal:"; journalctl -q --no-pager -n 60 SYSLOG_IDENTIFIER=agent@${module_id} 2>&1 | cut -c1-240; echo "--- traefik get-certificate:"; api-cli run module/traefik1/get-certificate --data '{"fqdn":"${HOST}"}' 2>&1 | head -c 400
+        Log    ${diag}    console=${True}
+        Fail    ${message}
+    END
     Wait until PDM is up
     ${code} =    Login status    ${PDM_PASSWORD_2}
     Should Be Equal    ${code}    200
