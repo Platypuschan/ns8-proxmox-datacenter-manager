@@ -295,13 +295,22 @@ All packages are correctly installed
 A renewed Traefik certificate reaches PDM
     [Documentation]    Uploads a new custom certificate for the host name to the default Traefik; the
     ...    certificate-changed event must make the module fetch it and restart PDM.
-    Execute Command    openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/renew.key -out /tmp/renew.crt -days 3 -subj "/CN=${HOST}" -addext "subjectAltName=DNS:${HOST}"
+    # Traefik verifies the chain of an uploaded certificate against the system
+    # trust store, so the test creates a CA and trusts it for the duration of the test.
+    Execute Command    openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/renew-ca.key -out /tmp/renew-ca.crt -days 3 -subj "/CN=pdm-ci-ca" -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign"
+    Execute Command    openssl req -newkey rsa:2048 -nodes -keyout /tmp/renew.key -out /tmp/renew.csr -subj "/CN=${HOST}"
+    Execute Command    printf 'subjectAltName=DNS:${HOST}\nbasicConstraints=CA:FALSE\n' > /tmp/renew.ext
+    Execute Command    openssl x509 -req -in /tmp/renew.csr -CA /tmp/renew-ca.crt -CAkey /tmp/renew-ca.key -CAcreateserial -days 3 -extfile /tmp/renew.ext -out /tmp/renew.crt
+    ${rc} =    Execute Command    if [ -d /usr/local/share/ca-certificates ]; then cp /tmp/renew-ca.crt /usr/local/share/ca-certificates/pdm-ci-ca.crt && update-ca-certificates; else cp /tmp/renew-ca.crt /etc/pki/ca-trust/source/anchors/pdm-ci-ca.crt && update-ca-trust; fi
+    ...    return_stdout=False    return_rc=True
+    Should Be Equal As Integers    ${rc}    0
     ${expected} =    Execute Command    openssl x509 -in /tmp/renew.crt -noout -fingerprint -sha256
     ${cert} =    Execute Command    base64 -w0 /tmp/renew.crt
     ${key} =    Execute Command    base64 -w0 /tmp/renew.key
     ${payload} =    Evaluate    json.dumps({"certFile": $cert.strip(), "keyFile": $key.strip()})    modules=json
     ${output}    ${rc} =    Execute Command    api-cli run module/traefik1/upload-certificate --data '${payload}'
     ...    return_rc=True
+    Execute Command    rm -f /usr/local/share/ca-certificates/pdm-ci-ca.crt /etc/pki/ca-trust/source/anchors/pdm-ci-ca.crt; (update-ca-certificates --fresh || update-ca-trust) >/dev/null 2>&1
     Should Be Equal As Integers    ${rc}    0    upload-certificate failed: ${output}
     Wait Until Keyword Succeeds    180 seconds    5 seconds    Served certificate has fingerprint    ${expected.strip()}
     Wait until PDM is up
