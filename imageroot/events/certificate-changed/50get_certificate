@@ -14,8 +14,23 @@ import agent
 import pdm_options
 
 event = json.load(sys.stdin)
-host = os.environ.get("TRAEFIK_HOST", "")
+
+def read_host():
+    # The agent process may have started before the first configuration, so
+    # its own environment can lack TRAEFIK_HOST; the state file is authoritative.
+    try:
+        with open("environment", encoding="utf-8") as stream:
+            for line in stream:
+                if line.startswith("TRAEFIK_HOST="):
+                    return line.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    return os.environ.get("TRAEFIK_HOST", "")
+
+
+host = read_host()
 options = pdm_options.read_options() or {}
+print("certificate-changed: host=%r tls_import=%r names=%r" % (host, options.get("tls_import"), event.get("names")), file=sys.stderr)
 
 if not host or not options.get("tls_import") or not agent.certificate_event_matches(event, host):
     sys.exit(0)  # not relevant for this instance
