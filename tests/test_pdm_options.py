@@ -33,6 +33,9 @@ class StoreTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             self.assertFalse(pdm_options.options_exist(d))
             self.assertIsNone(pdm_options.read_options(d))
+            Path(d, "options.env").touch()  # created empty by the service unit
+            self.assertFalse(pdm_options.options_exist(d))
+            self.assertIsNone(pdm_options.read_options(d))
             written = pdm_options.write_options({"ns8_layout": True, "hide_menu": ["subscription", "registry"]}, d)
             self.assertEqual(pdm_options.read_options(d), written)
             text = Path(d, "options.env").read_text()

@@ -35,7 +35,12 @@ def options_path(state_dir=None):
 
 
 def options_exist(state_dir=None):
-    return os.path.exists(options_path(state_dir))
+    # The service unit touches an empty file so the container can always read
+    # it; an empty file means "first configuration still pending".
+    try:
+        return os.path.getsize(options_path(state_dir)) > 0
+    except OSError:
+        return False
 
 
 def normalize(options):
@@ -72,6 +77,8 @@ def write_options(options, state_dir=None):
 
 def read_options(state_dir=None):
     """Return the stored options, or None if the first configuration is pending."""
+    if not options_exist(state_dir):
+        return None
     try:
         with open(options_path(state_dir), encoding="utf-8") as stream:
             raw = dict(line.rstrip("\n").split("=", 1) for line in stream if "=" in line)
