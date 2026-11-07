@@ -115,7 +115,8 @@ Password is stored only as a hash
 
 Check the application image
     ${version} =    Execute Command    runagent -m ${module_id} podman exec pdm cat /etc/pdm-version
-    Should Match Regexp    ${version}    ^[0-9]+\\.[0-9]+\\.[0-9]+\\s*$
+    ${version} =    Strip String    ${version}
+    Should Match Regexp    ${version}    ^[0-9]+[.][0-9]+[.][0-9]+$
     ${image} =    Execute Command    runagent -m ${module_id} printenv PDM_APP_IMAGE
     Should Contain    ${image}    /pdm-app:
     ${postfix} =    Execute Command    runagent -m ${module_id} podman exec pdm sh -c 'command -v postfix || echo none'
