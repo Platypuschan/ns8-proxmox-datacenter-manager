@@ -119,7 +119,10 @@ def main(argv):
         host, argv = argv[1], argv[2:]
     base, command, rest = argv[0], argv[1], argv[2:]
     client = Client(base, host)
-    client.login(os.environ["PDM_PASSWORD"])
+    try:
+        client.login(os.environ["PDM_PASSWORD"])
+    except urllib.error.HTTPError as err:
+        raise SystemExit(f"login failed: HTTP {err.code} {err.reason} {err.read().decode()[:200]}")
     if command == "shell":
         shell(client)
     elif command == "api":
@@ -129,7 +132,7 @@ def main(argv):
             print(client.call(method, path, data).read().decode())
         except urllib.error.HTTPError as err:
             print(err.read().decode(), file=sys.stderr)
-            raise SystemExit(f"HTTP {err.code}")
+            raise SystemExit(f"HTTP {err.code} {err.reason} for {err.url} headers={dict(err.headers)} python={sys.version.split()[0]} {ssl.OPENSSL_VERSION}")
     else:
         raise SystemExit("unknown command")
 
