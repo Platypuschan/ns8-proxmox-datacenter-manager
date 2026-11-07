@@ -11,6 +11,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "pypkg"))
 import pdm_config
+import pdm_options
 
 # Read current configuration from the environment file
 config = {
@@ -20,5 +21,12 @@ config = {
     # The password itself is never returned, only whether one is set.
     "admin_password_set": pdm_config.has_admin_password(),
 }
+
+# None until the first configuration is saved; the web interface then shows
+# the values as information only.
+config["options"] = pdm_options.read_options()
+config["options_locked"] = config["options"] is not None
+if config["options"] is None:
+    config["options"] = pdm_options.normalize(None)
 
 json.dump(config, fp=sys.stdout)

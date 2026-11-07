@@ -3,12 +3,20 @@
 # Proxmox Datacenter Manager application image for the NS8 module.
 #
 # Built from Debian 13 with the packages of the official Proxmox repository
-# (pdm-no-subscription). Only what PDM needs is installed: no mail server,
-# no storage tools, no systemd, no stubbed commands.
+# (pdm-no-subscription). No mail server, no cron, no init system.
 
 # Debian 13 slim, pinned by digest. The weekly update workflow proposes a newer
 # digest (security fixes of the base layer) as a pull request.
 ARG BASE_IMAGE=docker.io/library/debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
+
+# --- build the rename shim (see ns8-rename-shim.c) ---------------------------
+FROM ${BASE_IMAGE} AS shim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gcc libc6-dev
+COPY ns8-rename-shim.c /src/ns8-rename-shim.c
+RUN gcc -O2 -Wall -fPIC -shared -o /ns8-rename-shim.so /src/ns8-rename-shim.c -ldl
+
+# --- the application image ----------------------------------------------------
 FROM ${BASE_IMAGE}
 
 # Raise these two values to update PDM; the CI image tag follows the content of
@@ -38,24 +46,55 @@ RUN set -eux; \
     # are meaningless while building. Remove the stubs again afterwards.
     printf '#!/bin/sh\nexit 0\n' > /usr/local/bin/systemctl; chmod +x /usr/local/bin/systemctl; \
     printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d; chmod +x /usr/sbin/policy-rc.d; \
+    # No kernel, firmware or init system in a container. These pins also keep
+    # the "Upgrade" button of the web interface from pulling them in.
+    printf 'Package: proxmox-default-kernel proxmox-kernel-* pve-firmware proxmox-kernel-helper systemd-sysv linux-image-*\nPin: release *\nPin-Priority: -1\n' \
+        > /etc/apt/preferences.d/99-ns8-container; \
     apt-get install -y --no-install-recommends \
         "proxmox-datacenter-manager=${PDM_VERSION}" \
-        proxmox-datacenter-manager-ui \
+        proxmox-datacenter-manager-ui proxmox-datacenter-manager-client \
+        ifupdown2 proxmox-mail-forward proxmox-offline-mirror-helper zfsutils-linux \
         openssl tini; \
+    # Placeholder for proxmox-datacenter-manager-meta: the real package depends
+    # on a kernel and systemd-sysv. The web interface lists it in "Package
+    # Versions" and reports "not correctly installed" without it.
+    mkdir -p /tmp/meta/DEBIAN; \
+    printf 'Package: proxmox-datacenter-manager-meta\nVersion: %s\nSection: admin\nPriority: optional\nArchitecture: all\nMaintainer: ns8-proxmox-datacenter-manager <noreply@users.noreply.github.com>\nDepends: proxmox-archive-keyring, proxmox-datacenter-manager, proxmox-datacenter-manager-client, proxmox-datacenter-manager-docs, proxmox-datacenter-manager-ui\nDescription: Container variant of proxmox-datacenter-manager-meta\n The original package also depends on a kernel and an init system, which do\n not belong in a container. This empty package only depends on the Proxmox\n Datacenter Manager packages.\n' "${PDM_VERSION}" > /tmp/meta/DEBIAN/control; \
+    dpkg-deb --build /tmp/meta /tmp/meta.deb; \
+    dpkg -i /tmp/meta.deb; \
+    rm -rf /tmp/meta /tmp/meta.deb; \
+    # PDM is updated with the module image, not inside the container.
+    apt-mark hold proxmox-datacenter-manager proxmox-datacenter-manager-ui proxmox-datacenter-manager-docs proxmox-datacenter-manager-client proxmox-datacenter-manager-meta; \
+    # Package upgrades started from the web interface run without a terminal and
+    # without DEBIAN_FRONTEND: use the non-interactive debconf frontend and keep
+    # existing configuration files.
+    echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections; \
+    printf 'Dpkg::Options { "--force-confdef"; "--force-confold"; };\n' > /etc/apt/apt.conf.d/90-ns8-noninteractive; \
     rm -f /usr/local/bin/systemctl /usr/sbin/policy-rc.d; \
-    # curl stays: purging it also removes proxmox-datacenter-manager.
+    # curl stays: it is a dependency of proxmox-datacenter-manager.
     rm -f /etc/apt/sources.list.d/pdm-enterprise.* /etc/apt/sources.list.d/ceph.*; \
     # Fail the build if a maintainer script did not complete.
-    test "$(dpkg-query -W -f='${db:Status-Status}' proxmox-datacenter-manager)" = installed; \
+    for p in proxmox-datacenter-manager proxmox-datacenter-manager-meta ifupdown2 proxmox-mail-forward proxmox-offline-mirror-helper zfsutils-linux; do \
+        test "$(dpkg-query -W -f='${db:Status-Status}' "$p")" = installed; \
+    done; \
     test -x /usr/libexec/proxmox/proxmox-datacenter-api; \
     test -x /usr/libexec/proxmox/proxmox-datacenter-privileged-api; \
     dpkg-query -W -f='${Version}\n' proxmox-datacenter-manager > /etc/pdm-version; \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
+COPY --from=shim /ns8-rename-shim.so /usr/lib/ns8-rename-shim.so
+
+# Interface adjustments (menu, top bar, subscription notice); see ns8-custom.js
+RUN set -eux; \
+    www=/usr/share/javascript/proxmox-datacenter-manager; \
+    grep -q '</body>' "$www/index.hbs"; \
+    sed -i 's#</body>#   <script src="/js/ns8-config.js"></script>\n   <script src="/js/ns8-custom.js" defer></script>\n   </body>#' "$www/index.hbs"; \
+    grep -q ns8-custom.js "$www/index.hbs"
+COPY ns8-custom.js /usr/share/javascript/proxmox-datacenter-manager/js/ns8-custom.js
+
 COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
 
 EXPOSE 8443
 VOLUME /etc/proxmox-datacenter-manager /var/lib/proxmox-datacenter-manager /var/log/proxmox-datacenter-manager
-
 
 ENTRYPOINT ["/usr/bin/tini", "-g", "--", "/usr/local/bin/entrypoint.sh"]

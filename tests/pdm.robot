@@ -55,7 +55,9 @@ Login status
 
 Configure module
     [Arguments]    ${password}
-    ${payload} =    Evaluate    json.dumps({"host": $HOST, "http2https": False, "lets_encrypt": False, "admin_password": $password})    modules=json
+    ${options} =    Create Dictionary    tls_import=${TRUE}    disable_nag=${TRUE}    ns8_layout=${TRUE}    debian_extra=${TRUE}    repo_test=${TRUE}
+    ...    hide_menu=${{["subscription", "registry", "sdn", "ceph"]}}
+    ${payload} =    Evaluate    json.dumps({"host": $HOST, "http2https": False, "lets_encrypt": False, "admin_password": $password, "options": $options})    modules=json
     ${output}    ${rc} =    Execute Command    api-cli run module/${module_id}/configure-module --data '${payload}'
     ...    return_rc=True
     Should Be Equal As Integers    ${rc}    0    configure-module failed: ${output}
@@ -87,6 +89,17 @@ Loopback URL of
     [Arguments]    ${id}
     ${port} =    Module environment    ${id}    TCP_PORT
     RETURN    https://127.0.0.1:${port}
+
+Served certificate is the Traefik certificate
+    ${expected} =    Execute Command    runagent -m ${module_id} openssl x509 -in tls-certs/cert.pem -noout -fingerprint -sha256
+    ${served} =    Execute Command    echo | openssl s_client -connect 127.0.0.1:${web_port} 2>/dev/null | openssl x509 -noout -fingerprint -sha256
+    Should Contain    ${expected}    Fingerprint=
+    Should Be Equal    ${served}    ${expected}
+
+Served certificate has fingerprint
+    [Arguments]    ${expected}
+    ${served} =    Execute Command    echo | openssl s_client -connect 127.0.0.1:${web_port} 2>/dev/null | openssl x509 -noout -fingerprint -sha256
+    Should Be Equal    ${served.strip()}    ${expected}
 
 Module answers
     [Arguments]    ${base}
@@ -236,6 +249,79 @@ Data survives a service restart
     Should Contain    ${volumes}    pdm-config
     Should Contain    ${volumes}    pdm-data
     Should Contain    ${volumes}    pdm-log
+
+Options are fixed after the first configuration
+    ${output} =    Execute Command    api-cli run module/${module_id}/get-configuration
+    ${config} =    Evaluate    json.loads(r"""${output}""")    modules=json
+    Should Be True    ${config}[options_locked]
+    Should Be True    ${config}[options][ns8_layout]
+    Should Be Equal    ${config}[options][hide_menu]    ${{["subscription", "registry", "sdn", "ceph"]}}
+    # a second configuration with other values must not change them
+    ${payload} =    Evaluate    json.dumps({"host": $HOST, "http2https": False, "lets_encrypt": False, "options": {"ns8_layout": False, "hide_menu": []}})    modules=json
+    ${output}    ${rc} =    Execute Command    api-cli run module/${module_id}/configure-module --data '${payload}'
+    ...    return_rc=True
+    Should Be Equal As Integers    ${rc}    0    configure-module failed: ${output}
+    Wait until PDM is up
+    ${output} =    Execute Command    api-cli run module/${module_id}/get-configuration
+    ${config} =    Evaluate    json.loads(r"""${output}""")    modules=json
+    Should Be True    ${config}[options][ns8_layout]
+    Should Be Equal    ${config}[options][hide_menu]    ${{["subscription", "registry", "sdn", "ceph"]}}
+
+The web interface serves the adjustments
+    ${out} =    Execute Command    curl -ksS --max-time 10 https://127.0.0.1:${web_port}/js/ns8-config.js
+    Should Contain    ${out}    layout: true
+    Should Contain    ${out}    "subscription","registry","sdn","ceph"
+    ${out} =    Execute Command    curl -ksS --max-time 10 https://127.0.0.1:${web_port}/ | grep -c ns8-custom.js
+    Should Be Equal As Integers    ${out}    1
+
+PDM serves the Traefik certificate
+    Wait Until Keyword Succeeds    120 seconds    3 seconds    Served certificate is the Traefik certificate
+
+DNS search domain can be changed in PDM
+    ${base} =    Loopback URL of    ${module_id}
+    ${out} =    PDM api    ${PDM_PASSWORD_2}    ${base}    PUT    /api2/json/nodes/localhost/dns    search=ci.example    dns1=9.9.9.9
+    Should Not Contain    ${out}    Atomic rename
+    ${out} =    PDM api    ${PDM_PASSWORD_2}    ${base}    GET    /api2/json/nodes/localhost/dns
+    Should Contain    ${out}    ci.example
+
+All packages are correctly installed
+    ${base} =    Loopback URL of    ${module_id}
+    ${out} =    PDM api    ${PDM_PASSWORD_2}    ${base}    GET    /api2/json/nodes/localhost/apt/versions
+    ${versions} =    Evaluate    {p["Package"]: p.get("OldVersion") for p in json.loads($out)["data"]}    modules=json
+    FOR    ${package}    IN    proxmox-datacenter-manager-meta    proxmox-datacenter-manager    ifupdown2    proxmox-mail-forward    proxmox-offline-mirror-helper    zfsutils-linux
+        Should Not Be Empty    ${versions}[${package}]    ${package} is not installed
+    END
+
+A renewed Traefik certificate reaches PDM
+    [Documentation]    Uploads a new custom certificate for the host name to the default Traefik; the
+    ...    certificate-changed event must make the module fetch it and restart PDM.
+    # Traefik verifies the chain of an uploaded certificate against the system
+    # trust store, so the test creates a CA and trusts it for the duration of the test.
+    Execute Command    openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/renew-ca.key -out /tmp/renew-ca.crt -days 3 -subj "/CN=pdm-ci-ca" -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign"
+    Execute Command    openssl req -newkey rsa:2048 -nodes -keyout /tmp/renew.key -out /tmp/renew.csr -subj "/CN=${HOST}"
+    Execute Command    printf 'subjectAltName=DNS:${HOST}\nbasicConstraints=CA:FALSE\n' > /tmp/renew.ext
+    Execute Command    openssl x509 -req -in /tmp/renew.csr -CA /tmp/renew-ca.crt -CAkey /tmp/renew-ca.key -CAcreateserial -days 3 -extfile /tmp/renew.ext -out /tmp/renew.crt
+    ${rc} =    Execute Command    if [ -d /usr/local/share/ca-certificates ]; then cp /tmp/renew-ca.crt /usr/local/share/ca-certificates/pdm-ci-ca.crt && update-ca-certificates; else cp /tmp/renew-ca.crt /etc/pki/ca-trust/source/anchors/pdm-ci-ca.crt && update-ca-trust; fi
+    ...    return_stdout=False    return_rc=True
+    Should Be Equal As Integers    ${rc}    0
+    ${expected} =    Execute Command    openssl x509 -in /tmp/renew.crt -noout -fingerprint -sha256
+    ${cert} =    Execute Command    base64 -w0 /tmp/renew.crt
+    ${key} =    Execute Command    base64 -w0 /tmp/renew.key
+    ${payload} =    Evaluate    json.dumps({"certFile": $cert.strip(), "keyFile": $key.strip()})    modules=json
+    ${output}    ${rc} =    Execute Command    api-cli run module/traefik1/upload-certificate --data '${payload}'
+    ...    return_rc=True
+    Execute Command    rm -f /usr/local/share/ca-certificates/pdm-ci-ca.crt /etc/pki/ca-trust/source/anchors/pdm-ci-ca.crt; (update-ca-certificates --fresh || update-ca-trust) >/dev/null 2>&1
+    Should Be Equal As Integers    ${rc}    0    upload-certificate failed: ${output}
+    TRY
+        Wait Until Keyword Succeeds    180 seconds    5 seconds    Served certificate has fingerprint    ${expected.strip()}
+    EXCEPT    AS    ${message}
+        ${diag} =    Execute Command    echo "--- expected ${expected}"; echo "--- tls-certs:"; runagent -m ${module_id} sh -c 'ls -la tls-certs; openssl x509 -in tls-certs/cert.pem -noout -subject -fingerprint -sha256; ls -la ../events 2>&1; ls -la ../../imageroot/events/certificate-changed 2>&1' 2>&1; echo "--- agent journal:"; journalctl -q --no-pager -n 60 SYSLOG_IDENTIFIER=agent@${module_id} 2>&1 | cut -c1-240; echo "--- traefik get-certificate:"; api-cli run module/traefik1/get-certificate --data '{"fqdn":"${HOST}"}' 2>&1 | head -c 400
+        Log    ${diag}    console=${True}
+        Fail    ${message}
+    END
+    Wait until PDM is up
+    ${code} =    Login status    ${PDM_PASSWORD_2}
+    Should Be Equal    ${code}    200
 
 Service recovers from SIGKILL
     # A backup copies the volumes while PDM runs, which is as consistent as a

@@ -39,7 +39,20 @@
     "host_format": "Must be a valid fully qualified domain name",
     "admin_password_required": "A password is required for the first configuration",
     "admin_password_too_short": "The password must have at least 8 characters",
-    "invalid_admin_password": "The password must have at most 128 characters and must not contain control characters"
+    "invalid_admin_password": "The password must have at most 128 characters and must not contain control characters",
+    "first_setup": "First configuration options",
+    "first_setup_help": "Chosen once, when the module is configured for the first time. They cannot be changed afterwards.",
+    "first_setup_locked": "These options were chosen at the first configuration and are shown for information only.",
+    "opt_tls_import": "Use the Traefik certificate in the Certificates page",
+    "opt_disable_nag": "Confirm the \"no subscription\" notice automatically",
+    "opt_ns8_layout": "NS8 layout: menu order, Shell and Administration in the top bar",
+    "opt_debian_extra": "Add the Debian components contrib and non-free-firmware",
+    "opt_repo_test": "Add the pdm-test repository (disabled)",
+    "opt_hide_subscription": "Hide the menu entry Subscription",
+    "opt_hide_registry": "Hide the menu entry Subscription Registry",
+    "opt_hide_sdn": "Hide the menu entry SDN",
+    "opt_hide_ceph": "Hide the menu entry Ceph",
+    "invalid_options": "The options are not valid"
   },
   "about": {
     "title": "About"
