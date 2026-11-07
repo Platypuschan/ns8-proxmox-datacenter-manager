@@ -1,0 +1,40 @@
+#
+# Copyright (C) 2026 Platypuschan
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+[Unit]
+Description=Proxmox Datacenter Manager (Podman)
+After=network-online.target
+
+[Service]
+Environment=PODMAN_SYSTEMD_UNIT=%n
+EnvironmentFile=%E/state/environment
+WorkingDirectory=%E/state
+Restart=always
+# The entrypoint needs time to stop its daemons cleanly.
+TimeoutStartSec=120
+TimeoutStopSec=140
+ExecStartPre=/bin/rm -f %t/pdm.pid %t/pdm.ctr-id
+# DEBUG=Y: the image insists on --privileged and only warns otherwise; as a
+# rootless container it has all it needs inside its user namespace.
+# POSTFIX=N: no local mail transfer agent (notifications by mail not wired up).
+ExecStart=/usr/bin/podman run --detach \
+    --conmon-pidfile %t/pdm.pid --cidfile %t/pdm.ctr-id --cgroups=no-conmon \
+    --replace --name pdm --hostname pdm \
+    --publish 127.0.0.1:${TCP_PORT}:8443 \
+    --tmpfs /run/proxmox-datacenter-manager/shmem \
+    --volume pdm-config:/etc/proxmox-datacenter-manager:Z \
+    --volume pdm-data:/var/lib/proxmox-datacenter-manager:Z \
+    --env-file %E/state/admin.env \
+    --env DEBUG=Y --env POSTFIX=N \
+    --stop-timeout 120 \
+    ${PROXMOX_DM_IMAGE}
+ExecStop=/usr/bin/podman stop --ignore --cidfile %t/pdm.ctr-id -t 120
+ExecStopPost=/usr/bin/podman rm --ignore -f --cidfile %t/pdm.ctr-id
+SyslogIdentifier=%u
+PIDFile=%t/pdm.pid
+Type=forking
+
+[Install]
+WantedBy=default.target

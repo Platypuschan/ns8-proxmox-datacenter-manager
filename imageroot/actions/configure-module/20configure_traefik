@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+
+#
+# Copyright (C) 2026 Platypuschan
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+
+import json
+import sys
+import agent
+import agent.tasks
+import os
+
+data = json.load(sys.stdin)
+
+host = data.get("host")
+h2hs = data.get("http2https", True)
+le = data.get("lets_encrypt", False)
+
+agent.set_env("TRAEFIK_HOST", host)
+agent.set_env("TRAEFIK_HTTP2HTTPS", h2hs)
+agent.set_env("TRAEFIK_LETS_ENCRYPT", le)
+
+# Make sure everything is saved inside the environment file
+# just before starting systemd unit
+agent.dump_env()
+
+default_traefik_id = agent.resolve_agent_id('traefik@node')
+if default_traefik_id is None:
+    print("Default Traefik instance of this node not found", file=sys.stderr)
+    sys.exit(2)
+
+# Proxmox Datacenter Manager only speaks HTTPS and ships a self-signed
+# certificate on 127.0.0.1, so Traefik must not verify the backend certificate.
+# Public TLS is terminated by Traefik with the configured host name.
+response = agent.tasks.run(
+    agent_id=default_traefik_id,
+    action='set-route',
+    data={
+        'instance': os.environ['MODULE_ID'],
+        'url': 'https://127.0.0.1:' + os.environ["TCP_PORT"],
+        'host': host,
+        'http2https': h2hs,
+        'lets_encrypt': le,
+        'skip_cert_verify': True,
+    },
+)
+
+agent.assert_exp(response['exit_code'] == 0, "Traefik set-route failed")

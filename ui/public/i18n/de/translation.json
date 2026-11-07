@@ -1,0 +1,72 @@
+{
+  "common": {
+    "required": "Erforderlich",
+    "work_in_progress": "In Arbeit",
+    "processing": "Verarbeitung..."
+  },
+  "status": {
+    "title": "Status",
+    "app_instance": "App-Instanz",
+    "services": "Dienst | Dienste",
+    "app_images": "App-Image | App-Images",
+    "app_volumes": "App-Volume | App-Volumes",
+    "installation_node": "Installationsknoten",
+    "node": "Knoten",
+    "name": "Name",
+    "size": "Größe",
+    "created": "Erstellt",
+    "mount": "Einhängepunkt",
+    "no_services": "Keine Dienste",
+    "no_images": "Keine Images",
+    "no_volumes": "Keine Volumes"
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "save": "Speichern",
+    "pdm_fqdn": "Hostname des Proxmox Datacenter Managers (FQDN)",
+    "lets_encrypt": "Let's-Encrypt-Zertifikat anfordern",
+    "http_to_https": "HTTPS erzwingen",
+    "enabled": "Aktiviert",
+    "disabled": "Deaktiviert",
+    "admin_password": "Administratorpasswort",
+    "admin_password_help_new": "Passwort für den Benutzer root, Realm „Linux PAM“ (Anmeldung root@pam). Für die erste Konfiguration erforderlich.",
+    "admin_password_help_set": "Ein Passwort ist gesetzt. Leer lassen, um es zu behalten; zum Ersetzen ein neues eingeben. Das Modul setzt es bei jedem Start, daher sind Änderungen in der Oberfläche des Proxmox Datacenter Managers nicht dauerhaft.",
+    "configuring": "Konfiguriere",
+    "instance_configuration": "Proxmox Datacenter Manager konfigurieren",
+    "open_pdm": "Proxmox Datacenter Manager öffnen",
+    "domain_already_used_in_traefik": "Domain wird bereits in Traefik verwendet",
+    "host_pattern": "Muss ein gültiger vollständiger Domainname sein",
+    "host_format": "Muss ein gültiger vollständiger Domainname sein",
+    "admin_password_required": "Für die erste Konfiguration ist ein Passwort erforderlich",
+    "admin_password_too_short": "Das Passwort muss mindestens 8 Zeichen lang sein",
+    "invalid_admin_password": "Das Passwort darf höchstens 128 Zeichen lang sein und keine Steuerzeichen enthalten"
+  },
+  "about": {
+    "title": "Info"
+  },
+  "task": {
+    "cannot_create_task": "Aufgabe {action} kann nicht erstellt werden"
+  },
+  "action": {
+    "get-status": "Status abrufen",
+    "get-configuration": "Konfiguration abrufen",
+    "configure-module": "Modul konfigurieren",
+    "get-module-info": "Modulinfo abrufen",
+    "get-name": "Namen abrufen",
+    "list-backup-repositories": "Backup-Repositories auflisten",
+    "list-backups": "Backups auflisten",
+    "list-installed-modules": "Installierte Module auflisten"
+  },
+  "error": {
+    "error": "Fehler",
+    "generic_error": "Etwas ist schiefgelaufen",
+    "validation_error": "Validierungsfehler",
+    "network_error": "Netzwerkfehler",
+    "network_timeout": "Netzwerk-Zeitüberschreitung",
+    "401": "Ungültige Authentifizierung",
+    "403": "Vorgang nicht erlaubt",
+    "404": "Ressource nicht gefunden",
+    "cannot_retrieve_module_info": "Modulinfo kann nicht abgerufen werden",
+    "cannot_retrieve_installed_modules": "Installierte Module können nicht abgerufen werden"
+  }
+}

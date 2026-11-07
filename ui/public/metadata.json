@@ -1,0 +1,21 @@
+{
+  "name": "Proxmox Datacenter Manager",
+  "description": {
+    "en": "Central overview and management of many Proxmox VE and Proxmox Backup Server installations.",
+    "de": "Zentrale Übersicht und Verwaltung vieler Proxmox-VE- und Proxmox-Backup-Server-Installationen."
+  },
+  "categories": [
+    "system"
+  ],
+  "authors": [
+    {
+      "name": "Platypuschan"
+    }
+  ],
+  "docs": {
+    "documentation_url": "https://pdm.proxmox.com/docs/",
+    "bug_url": "https://github.com/Platypuschan/ns8-proxmox-datacenter-manager/issues",
+    "code_url": "https://github.com/Platypuschan/ns8-proxmox-datacenter-manager"
+  },
+  "source": "ghcr.io/platypuschan/proxmox-datacenter-manager"
+}
