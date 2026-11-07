@@ -125,6 +125,12 @@ Configure initial module
 Install the test client
     Put File    tests/pdm_client.py    /tmp/pdm_client.py
 
+Diagnose API access paths
+    [Documentation]    Logs how the same call behaves directly and through Traefik; never fails.
+    Put File    tests/diagnose.sh    /tmp/diagnose.sh
+    ${out} =    Execute Command    PDM_PASSWORD='${PDM_PASSWORD}' bash /tmp/diagnose.sh ${web_port} ${HOST}
+    Log    ${out}    console=${True}
+
 Create marker data
     # A user in the PDM configuration and a task in the task history must survive
     # update, restore and clone.
