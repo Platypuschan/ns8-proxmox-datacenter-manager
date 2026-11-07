@@ -6,10 +6,11 @@ Backup Server installations. The module runs it as a rootless Podman container,
 publishes it through the node Traefik with a host name and an optional Let's
 Encrypt certificate, and includes its configuration and data in the NS8 backup.
 
-> Status: pre-release (`0.1.0-rc.1`). The module logic is covered by unit tests
-> and the application container was exercised rootless with Podman, but the
-> module has **not yet been installed on an NS8 node**. Create a backup of the
-> node and test on a non-productive node first.
+> Status: pre-release (`0.1.0-rc.1`). The CI installs the module on a real
+> NS8 node (Debian 13 and Rocky Linux 9) and checks configuration, login,
+> password change, the Traefik route, persistence over a restart and the UI.
+> **Not yet tested:** updating from a previous release, backup and restore, and
+> adding real Proxmox remotes. Test on a non-productive node first.
 
 ## Install
 
@@ -70,7 +71,7 @@ interface is reset at the next restart; change it in the module settings.
 The volumes are copied while PDM is running. For a guaranteed consistent
 snapshot stop the service (`runagent -m <id> systemctl --user stop pdm`) before
 a manual backup. On restore, the module re-creates its Traefik route from the saved
-settings (restore path derived from the ntfy module; not yet tested on NS8).
+settings (the restore path follows the ntfy module and is not yet tested on NS8).
 
 ## Design decisions
 
