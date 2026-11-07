@@ -1,8 +1,9 @@
 name: Update Proxmox Datacenter Manager
 
-# Look for a new Proxmox Datacenter Manager release every week. A new release
-# gets a pull request that raises PDM_VERSION in app/Containerfile and the
-# CATALOG_VERSION; nothing is merged or released automatically.
+# Look every week for a new Proxmox Datacenter Manager release and for a new
+# digest of the Debian base image. A change gets a pull request that raises
+# PDM_VERSION and/or BASE_IMAGE in app/Containerfile and the CATALOG_VERSION;
+# nothing is merged or released automatically.
 
 on:
   schedule:
@@ -20,24 +21,23 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.ref_name }}
           fetch-depth: 0
 
       - name: Propose the update
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DEFAULT_BRANCH: ${{ github.ref_name }}
         run: |
           set -Eeuo pipefail
-          latest="$(.github/scripts/update-pdm --latest)"
-          current="$(sed -n 's/^ARG PDM_VERSION=//p' app/Containerfile)"
-          echo "Packaged: ${current}; latest in the Proxmox repository: ${latest}"
-          if [[ "$(.github/scripts/update-pdm --apply "${latest}")" == unchanged ]]; then
-            echo "::notice::Already on ${latest}."
+          summary="$(.github/scripts/update-pdm --update)"
+          if [[ -z "${summary}" ]]; then
+            echo "::notice::PDM and the base image are current."
             exit 0
           fi
-          branch="update-pdm-${latest}"
+          echo "Changes: ${summary}"
+          branch="update-pdm-$(git diff -- app/Containerfile | sha256sum | cut -c1-12)"
           if git ls-remote --exit-code --heads origin "${branch}" >/dev/null 2>&1; then
             echo "::notice::${branch} already exists."
             exit 0
@@ -45,11 +45,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch --create "${branch}"
-          git commit --all --message "Update Proxmox Datacenter Manager to ${latest}"
+          git commit --all --message "Update: ${summary}"
           git push origin "${branch}"
           gh pr create --base "${DEFAULT_BRANCH}" --head "${branch}" \
-            --title "Update Proxmox Datacenter Manager to ${latest}" \
-            --body "Automatic proposal: PDM ${current} -> ${latest} (app/Containerfile) and a new CATALOG_VERSION. Review the [release notes](https://pdm.proxmox.com/docs/) before merging. Merging publishes a new module version."
+            --title "Update: ${summary}" \
+            --body "Automatic proposal (${summary}) in app/Containerfile and a new CATALOG_VERSION. For a new PDM version read the [release notes](https://pdm.proxmox.com/docs/) first. Merging publishes a new module version."
           # Pushes and pull requests created with GITHUB_TOKEN do not start
           # workflows, so start the checks explicitly.
           gh workflow run validate.yml --ref "${branch}"

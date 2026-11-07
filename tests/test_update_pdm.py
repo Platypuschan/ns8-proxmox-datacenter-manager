@@ -68,6 +68,34 @@ class ApplyTests(unittest.TestCase):
     def test_repository_containerfile_is_parseable(self):
         text = (ROOT / "app/Containerfile").read_text()
         update_pdm.version_key(update_pdm.current_version(text))
+        self.assertRegex(update_pdm.current_base(text), r"^sha256:[0-9a-f]{64}$")
+        self.assertIn("FROM ${BASE_IMAGE}", text)
+
+    def test_update_applies_both_changes_with_one_catalog_bump(self):
+        old, new = "sha256:" + "a" * 64, "sha256:" + "b" * 64
+        with tempfile.TemporaryDirectory() as d:
+            cf, vf = Path(d) / "c", Path(d) / "v"
+            cf.write_text(f"ARG BASE_IMAGE=docker.io/library/debian:trixie-slim@{old}\nFROM ${{BASE_IMAGE}}\nARG PDM_VERSION=1.1.9\n")
+            vf.write_text("0.1.0-rc.3\n")
+            self.assertEqual(update_pdm.rewrite(cf, vf, "1.1.9", old), [])
+            self.assertEqual(vf.read_text(), "0.1.0-rc.3\n")
+            changes = update_pdm.rewrite(cf, vf, "1.2.0", new)
+            self.assertEqual(len(changes), 2)
+            self.assertIn(new, cf.read_text())
+            self.assertIn("ARG PDM_VERSION=1.2.0", cf.read_text())
+            self.assertEqual(vf.read_text(), "0.1.0-rc.4\n")
+            self.assertEqual(update_pdm.rewrite(cf, vf, base=new), [])
+
+    def test_base_digest_only_change(self):
+        old, new = "sha256:" + "a" * 64, "sha256:" + "c" * 64
+        with tempfile.TemporaryDirectory() as d:
+            cf, vf = Path(d) / "c", Path(d) / "v"
+            cf.write_text(f"ARG BASE_IMAGE=docker.io/library/debian:trixie-slim@{old}\nARG PDM_VERSION=1.1.9\n")
+            vf.write_text("0.1.0\n")
+            self.assertEqual(update_pdm.rewrite(cf, vf, base=new)[0][:10], "base image")
+            self.assertEqual(vf.read_text(), "0.1.1\n")
+            with self.assertRaises(ValueError):
+                update_pdm.rewrite(cf, vf, base="sha256:xyz")
 
 
 if __name__ == "__main__":
