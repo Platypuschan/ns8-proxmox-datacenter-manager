@@ -64,9 +64,9 @@ PDM client
     [Documentation]    Run tests/pdm_client.py on the node: BASE is the PDM URL, HOST an optional Host header.
     [Arguments]    ${password}    ${base}    ${command}    @{args}    ${host}=${EMPTY}
     ${hostopt} =    Set Variable If    '${host}' != ''    --host ${host}    ${EMPTY}
-    ${output}    ${rc} =    Execute Command    PDM_PASSWORD='${password}' python3 -I /tmp/pdm_client.py ${hostopt} ${base} ${command} @{args}
-    ...    return_rc=True
-    Should Be Equal As Integers    ${rc}    0    pdm_client ${command} failed: ${output}
+    ${output}    ${error}    ${rc} =    Execute Command    PDM_PASSWORD='${password}' python3 -I /tmp/pdm_client.py ${hostopt} ${base} ${command} @{args}
+    ...    return_stderr=True    return_rc=True
+    Should Be Equal As Integers    ${rc}    0    pdm_client ${command} ${base} failed: ${output} ${error}
     RETURN    ${output}
 
 Module environment
