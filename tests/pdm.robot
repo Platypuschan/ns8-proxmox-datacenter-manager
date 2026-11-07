@@ -69,6 +69,14 @@ PDM client
     Should Be Equal As Integers    ${rc}    0    pdm_client ${command} ${base} failed: ${output} ${error}
     RETURN    ${output}
 
+PDM api
+    [Documentation]    Authenticated API call with curl (tests/pdm_api.sh). Extra arguments are key=value pairs.
+    [Arguments]    ${password}    ${base}    ${method}    ${path}    @{pairs}    ${host}=${EMPTY}
+    ${output}    ${error}    ${rc} =    Execute Command    PDM_HOST='${host}' PDM_PASSWORD='${password}' bash /tmp/pdm_api.sh ${base} ${method} ${path} @{pairs}
+    ...    return_stderr=True    return_rc=True
+    Should Be Equal As Integers    ${rc}    0    ${method} ${path} on ${base} failed: ${output} ${error}
+    RETURN    ${output}
+
 Module environment
     [Arguments]    ${id}    ${name}
     ${out} =    Execute Command    runagent -m ${id} printenv ${name}
@@ -91,7 +99,7 @@ Wait until module is up
 
 Marker user exists
     [Arguments]    ${password}    ${base}    ${host}=${EMPTY}
-    ${users} =    PDM client    ${password}    ${base}    api    GET    /api2/json/access/users    host=${host}
+    ${users} =    PDM api    ${password}    ${base}    GET    /api2/json/access/users    host=${host}
     Should Contain    ${users}    ci-marker@pdm
 
 *** Test Cases ***
@@ -124,6 +132,7 @@ Configure initial module
 
 Install the test client
     Put File    tests/pdm_client.py    /tmp/pdm_client.py
+    Put File    tests/pdm_api.sh    /tmp/pdm_api.sh
 
 Diagnose API access paths
     [Documentation]    Logs how the same call behaves directly and through Traefik; never fails.
@@ -135,7 +144,7 @@ Create marker data
     # A user in the PDM configuration and a task in the task history must survive
     # update, restore and clone.
     ${base} =    Loopback URL of    ${module_id}
-    ${out} =    PDM client    ${PDM_PASSWORD}    ${base}    api    POST    /api2/json/access/users    userid=ci-marker@pdm    comment=ci-marker
+    ${out} =    PDM api    ${PDM_PASSWORD}    ${base}    POST    /api2/json/access/users    userid=ci-marker@pdm    comment=ci-marker
     Marker user exists    ${PDM_PASSWORD}    ${base}
 
 Update module from the previous release
@@ -289,7 +298,7 @@ The restored module serves the saved data
     Should Be Equal    ${code}    200
     Marker user exists    ${PDM_PASSWORD_2}    ${base}
     # Task history lives in the pdm-log volume: the node shell opened above.
-    ${tasks} =    PDM client    ${PDM_PASSWORD_2}    ${base}    api    GET    /api2/json/nodes/localhost/tasks
+    ${tasks} =    PDM api    ${PDM_PASSWORD_2}    ${base}    GET    /api2/json/nodes/localhost/tasks
     Should Contain    ${tasks}    termproxy
 
 The restored module has its route again

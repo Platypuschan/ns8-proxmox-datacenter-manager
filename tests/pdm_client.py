@@ -2,13 +2,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Small PDM API and node-shell client for the NS8 module tests (stdlib only).
 
-  PDM_PASSWORD=... pdm_client.py [--host HEADER] BASE_URL api METHOD PATH [key=value ...]
   PDM_PASSWORD=... pdm_client.py [--host HEADER] BASE_URL shell
 
 BASE_URL is e.g. https://127.0.0.1:20015 (module port) or http://127.0.0.1
 (Traefik). --host sets the Host header, as a browser would for the route.
-`api` prints the JSON response body; `shell` opens the node shell through the
-websocket (termproxy + vncwebsocket), runs an echo and prints "ws-ok".
+`shell` opens the node shell through the websocket (termproxy + vncwebsocket),
+runs an echo and prints "ws-ok". (API calls: tests/pdm_api.sh; this Python
+client got an empty HTTP 400 on the CI nodes for HTTPS requests to the module
+port while curl did not.)
 """
 import base64, http.client, json, os, socket, ssl, sys, urllib.parse
 
