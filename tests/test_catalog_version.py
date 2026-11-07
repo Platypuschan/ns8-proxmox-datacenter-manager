@@ -80,6 +80,15 @@ class ReleaseCheckTest(unittest.TestCase):
         self.assertEqual(len(self.check("main")), 1)
         self.assertIn("imageroot/actions/example", self.check()[0])
 
+    def test_new_module_without_version_file_in_base_passes(self):
+        self.git("rm", "--quiet", "CATALOG_VERSION")
+        self.git("commit", "--quiet", "--message", "base without version file")
+        self.git("switch", "--quiet", "--create", "bootstrap")
+        self.write("CATALOG_VERSION", "0.1.0-rc.1\n")
+        self.write("imageroot/actions/example", "new\n")
+        self.commit("introduce the module")
+        self.assertEqual(self.check("feature"), [])
+
     def test_image_change_with_bump_passes(self):
         self.write("imageroot/actions/example", "two\n")
         self.write("CATALOG_VERSION", "0.1.1\n")

@@ -67,7 +67,12 @@ def check(base=None, cwd=None):
         changed = changed_release_files(since, cwd=cwd)
         if not changed:
             return []
-        previous_text = git("show", f"{since}:{VERSION_FILE}", cwd=cwd)
+        try:
+            previous_text = git("show", f"{since}:{VERSION_FILE}", cwd=cwd)
+        except subprocess.CalledProcessError:
+            # The base has no version file yet: this change introduces the
+            # module, so there is nothing to raise above.
+            return []
         if current > parse_version(previous_text):
             return []
         return [
