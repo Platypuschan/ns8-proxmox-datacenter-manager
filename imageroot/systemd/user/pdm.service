@@ -5,7 +5,6 @@
 
 [Unit]
 Description=Proxmox Datacenter Manager (Podman)
-After=network-online.target
 
 [Service]
 Environment=PODMAN_SYSTEMD_UNIT=%n
@@ -25,6 +24,7 @@ ExecStart=/usr/bin/podman run --detach \
     --tmpfs /run/proxmox-datacenter-manager/shmem \
     --volume pdm-config:/etc/proxmox-datacenter-manager:Z \
     --volume pdm-data:/var/lib/proxmox-datacenter-manager:Z \
+    --volume pdm-log:/var/log/proxmox-datacenter-manager:Z \
     --env-file %E/state/admin.env \
     --stop-timeout 120 \
     ${PDM_APP_IMAGE}

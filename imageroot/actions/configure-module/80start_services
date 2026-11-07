@@ -13,6 +13,11 @@ exec 1>&2
 # If the control reaches this step, the service can be enabled and started
 systemctl --user enable pdm.service
 systemctl --user reset-failed pdm.service
-# Restart on every configuration: a changed password is applied by the
-# container entrypoint at start.
-systemctl --user restart pdm.service
+# The container reads the password hash only at start. Restart a running
+# service only after a password change; host or certificate settings are
+# handled by Traefik and must not interrupt running PDM tasks.
+pypkg="$(dirname "$(readlink -f "$0")")/../../pypkg"
+restart="$(PYTHONPATH="${pypkg}" python3 -c 'import pdm_config; print(int(pdm_config.take_restart_marker()))')"
+if [[ "${restart}" == 1 ]] || ! systemctl --user is-active --quiet pdm.service; then
+    systemctl --user restart pdm.service
+fi

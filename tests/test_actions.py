@@ -122,6 +122,23 @@ class WriteTests(unittest.TestCase):
             self.assertEqual((Path(d) / "admin.env").read_text(), before)
 
 
+class StartServicesTests(unittest.TestCase):
+    def test_restart_only_after_password_change_or_when_stopped(self):
+        text = (ACTIONS / "configure-module/80start_services").read_text()
+        self.assertIn("take_restart_marker", text)
+        self.assertIn("is-active", text)
+        self.assertNotRegex(text, r"(?m)^systemctl --user restart")
+        subprocess = __import__("subprocess")
+        subprocess.run(["bash", "-n", str(ACTIONS / "configure-module/80start_services")], check=True)
+
+    def test_write_action_sets_marker(self):
+        with tempfile.TemporaryDirectory() as d:
+            run(WRITE, d, {"admin_password": "long-enough-pass"})
+            self.assertTrue(pdm_config.take_restart_marker(d))
+            run(WRITE, d, {"admin_password": ""})
+            self.assertFalse(pdm_config.take_restart_marker(d))
+
+
 class TraefikTests(unittest.TestCase):
     def test_route_uses_https_backend_without_verification(self):
         with tempfile.TemporaryDirectory() as d:
@@ -169,7 +186,7 @@ class StaticTests(unittest.TestCase):
     def test_backup_includes_cover_all_state(self):
         text = (ROOT / "imageroot/etc/state-include.conf").read_text()
         lines = [l for l in text.splitlines() if l and not l.startswith("#")]
-        self.assertEqual(sorted(lines), ["state/admin.env", "volumes/pdm-config", "volumes/pdm-data"])
+        self.assertEqual(sorted(lines), ["state/admin.env", "volumes/pdm-config", "volumes/pdm-data", "volumes/pdm-log"])
         unit = (ROOT / "imageroot/systemd/user/pdm.service").read_text()
         for line in lines:
             if line.startswith("volumes/"):

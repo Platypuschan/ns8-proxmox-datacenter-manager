@@ -52,7 +52,7 @@ class AdminEnvTests(unittest.TestCase):
             self.assertNotIn("super-secret-1", content)
             self.assertEqual(content.count("\n"), 1)
             self.assertTrue(pdm_config.has_admin_password(directory))
-            self.assertEqual(os.listdir(directory), ["admin.env"])
+            self.assertEqual(sorted(os.listdir(directory)), ["admin.env", "restart-needed"])
 
     def test_rewrite_replaces_hash(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -60,6 +60,13 @@ class AdminEnvTests(unittest.TestCase):
             first = (Path(directory) / "admin.env").read_text()
             pdm_config.write_admin_password("second-password", directory)
             self.assertNotEqual(first, (Path(directory) / "admin.env").read_text())
+
+    def test_restart_marker_is_set_by_a_write_and_taken_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertFalse(pdm_config.take_restart_marker(directory))
+            pdm_config.write_admin_password("first-password", directory)
+            self.assertTrue(pdm_config.take_restart_marker(directory))
+            self.assertFalse(pdm_config.take_restart_marker(directory))
 
     def test_invalid_password_is_not_written(self):
         with tempfile.TemporaryDirectory() as directory:

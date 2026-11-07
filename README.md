@@ -65,13 +65,14 @@ interface is reset at the next restart; change it in the module settings.
 | Content | Location | Backup |
 | --- | --- | --- |
 | Remotes, API tokens, keys, certificates | Podman volume `pdm-config` | yes |
-| Metrics database, tasks | Podman volume `pdm-data` | yes |
+| Metrics database | Podman volume `pdm-data` | yes |
+| Task logs, access and auth logs | Podman volume `pdm-log` | yes |
 | Administrator password hash | `state/admin.env` | yes |
 
 The volumes are copied while PDM is running. For a guaranteed consistent
 snapshot stop the service (`runagent -m <id> systemctl --user stop pdm`) before
 a manual backup. On restore, the module re-creates its Traefik route from the saved
-settings (the restore path follows the ntfy module and is not yet tested on NS8).
+settings (not yet tested on NS8).
 
 ## Design decisions
 

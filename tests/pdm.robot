@@ -161,11 +161,13 @@ Data survives a service restart
     ${volumes} =    Execute Command    runagent -m ${module_id} podman volume ls --format '{{.Name}}'
     Should Contain    ${volumes}    pdm-config
     Should Contain    ${volumes}    pdm-data
+    Should Contain    ${volumes}    pdm-log
 
 Backup includes cover the state
     ${include} =    Execute Command    runagent -m ${module_id} sh -c 'cat ../etc/state-include.conf'
     Should Contain    ${include}    volumes/pdm-config
     Should Contain    ${include}    volumes/pdm-data
+    Should Contain    ${include}    volumes/pdm-log
     Should Contain    ${include}    state/admin.env
 
 Module UI loads in cluster-admin

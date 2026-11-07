@@ -52,7 +52,7 @@ RUN set -eux; \
 COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
 
 EXPOSE 8443
-VOLUME /etc/proxmox-datacenter-manager /var/lib/proxmox-datacenter-manager
+VOLUME /etc/proxmox-datacenter-manager /var/lib/proxmox-datacenter-manager /var/log/proxmox-datacenter-manager
 
 
 ENTRYPOINT ["/usr/bin/tini", "-g", "--", "/usr/local/bin/entrypoint.sh"]
