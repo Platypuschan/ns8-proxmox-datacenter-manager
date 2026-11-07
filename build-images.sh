@@ -18,13 +18,20 @@ repobase="${REPOBASE:-ghcr.io/platypuschan}"
 reponame="proxmox-datacenter-manager"
 repository_source="${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-Platypuschan/ns8-proxmox-datacenter-manager}"
 MODULE_VERSION="$(tr -d '\r\n' < CATALOG_VERSION)"
-# Unofficial community image (MIT) that runs the packages from the official
-# Proxmox repository download.proxmox.com/debian/pdm. Pinned by tag; to pin by
-# digest append @sha256:<digest>.
-PDM_IMAGE="ghcr.io/dockur/proxmox-dm:1.1.9"
+# The application image is built from app/ (Debian plus the packages of the
+# official Proxmox repository download.proxmox.com/debian/pdm). Its tag is the
+# Git tree hash of app/; in CI the "app" job of publish-images.yml pushes it
+# before this script runs.
+PDM_IMAGE="$(.github/scripts/app-image)"
 # Keep in sync with the Node.js version used by .github/workflows/validate.yml
 NODE_IMAGE="docker.io/library/node:24.20.0"
 nodebuilder="nodebuilder-pdm-${NODE_IMAGE##*:}"
+
+if [[ -z "${CI:-}" ]] && ! buildah inspect --type image "${PDM_IMAGE}" >/dev/null 2>&1; then
+	echo "Building the application image ${PDM_IMAGE}..."
+	buildah bud --layers -t "${PDM_IMAGE}" app
+fi
+
 # Create a new empty container image
 container=$(buildah from scratch)
 
@@ -45,7 +52,7 @@ buildah add "${container}" imageroot /imageroot
 buildah add "${container}" ui/dist /ui
 # One reserved web port, rootless container, Traefik route administration.
 # The org.nethserver.images label makes NS8 pull the application image and
-# export it to the unit file as ${PROXMOX_DM_IMAGE}.
+# export it to the unit file as ${PDM_APP_IMAGE}.
 buildah config --entrypoint=/ \
 	--label="org.opencontainers.image.source=${repository_source}" \
 	--label="org.opencontainers.image.version=${MODULE_VERSION}" \

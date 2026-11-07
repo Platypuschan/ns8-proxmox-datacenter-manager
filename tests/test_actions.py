@@ -160,9 +160,9 @@ class StaticTests(unittest.TestCase):
     def test_unit_file(self):
         unit = (ROOT / "imageroot/systemd/user/pdm.service").read_text()
         self.assertNotIn("%S/state", unit)
-        for needle in ("${PROXMOX_DM_IMAGE}", "${TCP_PORT}:8443", "--tmpfs /run/proxmox-datacenter-manager/shmem",
+        for needle in ("${PDM_APP_IMAGE}", "${TCP_PORT}:8443", "--tmpfs /run/proxmox-datacenter-manager/shmem",
                        "pdm-config:/etc/proxmox-datacenter-manager", "pdm-data:/var/lib/proxmox-datacenter-manager",
-                       "admin.env", "DEBUG=Y"):
+                       "admin.env"):
             self.assertIn(needle, unit)
         self.assertIn("127.0.0.1:${TCP_PORT}", unit)
 
@@ -175,13 +175,45 @@ class StaticTests(unittest.TestCase):
             if line.startswith("volumes/"):
                 self.assertIn(line.split("/", 1)[1] + ":", unit)
 
-    def test_build_script_label_matches_env_name(self):
-        script = (ROOT / "build-images.sh").read_text()
-        image = re.search(r'PDM_IMAGE="([^"]+)"', script).group(1)
+    def test_app_image_name_matches_env_name(self):
         # NS8 derives <NAME>_IMAGE from the last path segment of the image
-        name = image.rsplit("/", 1)[1].split(":")[0].split("@")[0].upper().replace("-", "_")
+        script = (ROOT / ".github/scripts/app-image").read_text()
+        name = re.search(r"/(pdm-app):%s", script).group(1).upper().replace("-", "_")
         unit = (ROOT / "imageroot/systemd/user/pdm.service").read_text()
         self.assertIn("${%s_IMAGE}" % name, unit)
+        build = (ROOT / "build-images.sh").read_text()
+        self.assertIn("org.nethserver.images=${PDM_IMAGE}", build)
+        self.assertIn('PDM_IMAGE="$(.github/scripts/app-image)"', build)
+
+
+class AppImageTests(unittest.TestCase):
+    def test_containerfile_is_pinned_and_minimal(self):
+        text = (ROOT / "app/Containerfile").read_text()
+        self.assertRegex(text, r"(?m)^ARG PDM_VERSION=\d+\.\d+\.\d+$")
+        self.assertRegex(text, r"(?m)^ARG PROXMOX_KEYRING_SHA256=[0-9a-f]{64}$")
+        self.assertIn("sha256sum -c", text)
+        self.assertIn('"proxmox-datacenter-manager=${PDM_VERSION}"', text)
+        self.assertIn("--no-install-recommends", text)
+        for forbidden in ("postfix", "supercronic", "nfs-common", "open-iscsi", "chpasswd"):
+            self.assertNotIn(forbidden, text)
+        # build-time stubs must not stay in the image
+        self.assertIn("rm -f /usr/local/bin/systemctl /usr/sbin/policy-rc.d", text)
+
+    def test_entrypoint_requires_a_hash_and_has_no_default_password(self):
+        text = (ROOT / "app/entrypoint.sh").read_text()
+        self.assertIn("PASSWORD_HASH", text)
+        self.assertIn("chpasswd -e", text)
+        self.assertNotIn(":=root", text)
+        self.assertNotIn('PASSWORD:-', text)
+
+    def test_entrypoint_passes_bash_syntax_check(self):
+        import subprocess
+        subprocess.run(["bash", "-n", str(ROOT / "app/entrypoint.sh")], check=True)
+
+    def test_workflow_publishes_app_before_module(self):
+        text = (ROOT / ".github/workflows/publish-images.yml").read_text()
+        self.assertIn("app/", text)
+        self.assertRegex(text, r"publish-images:\n\s+needs: \[app, existing-tag\]")
 
 
 if __name__ == "__main__":

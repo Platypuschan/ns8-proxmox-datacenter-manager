@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+"""Find the newest Proxmox Datacenter Manager release and prepare the bump.
+
+  update-pdm --latest          print the newest version in the Proxmox repository
+  update-pdm --apply VERSION   set PDM_VERSION in app/Containerfile and raise
+                               CATALOG_VERSION so that CI publishes a new module
+
+The repository index is only used to propose a change. The image build installs
+the package through apt, which verifies the signed repository metadata.
+"""
+
+import argparse
+import gzip
+import re
+import sys
+import urllib.request
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+CONTAINERFILE = ROOT / "app/Containerfile"
+VERSION_FILE = ROOT / "CATALOG_VERSION"
+INDEX_URL = (
+    "http://download.proxmox.com/debian/pdm/dists/trixie/"
+    "pdm-no-subscription/binary-amd64/Packages.gz"
+)
+PDM_VERSION_RE = re.compile(r"^(ARG PDM_VERSION=)(\S+)$", re.MULTILINE)
+
+
+def version_key(text):
+    """Order dotted Proxmox versions such as 1.1.9; reject anything else."""
+    if not re.fullmatch(r"[0-9]+(\.[0-9]+)*", text):
+        raise ValueError(f"unsupported version: {text!r}")
+    return tuple(int(part) for part in text.split("."))
+
+
+def newest_version(index_text):
+    """Return the highest version of the proxmox-datacenter-manager package."""
+    versions = []
+    for stanza in index_text.split("\n\n"):
+        fields = dict(
+            line.split(": ", 1) for line in stanza.splitlines() if ": " in line and not line.startswith(" ")
+        )
+        if fields.get("Package") == "proxmox-datacenter-manager":
+            try:
+                version_key(fields["Version"])
+            except (KeyError, ValueError):
+                continue
+            versions.append(fields["Version"])
+    if not versions:
+        raise ValueError("proxmox-datacenter-manager not found in the package index")
+    return max(versions, key=version_key)
+
+
+def current_version(containerfile_text):
+    match = PDM_VERSION_RE.search(containerfile_text)
+    if not match:
+        raise ValueError("ARG PDM_VERSION not found in app/Containerfile")
+    return match.group(2)
+
+
+def bump_catalog_version(text):
+    """0.1.0-rc.1 -> 0.1.0-rc.2, 0.1.0 -> 0.1.1, 0.1.0-beta -> 0.1.0-beta.1"""
+    text = text.strip()
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?", text)
+    if not match:
+        raise ValueError(f"invalid SemVer version: {text!r}")
+    major, minor, patch, pre = match.groups()
+    if pre is None:
+        return f"{major}.{minor}.{int(patch) + 1}"
+    parts = pre.split(".")
+    if parts[-1].isdigit():
+        parts[-1] = str(int(parts[-1]) + 1)
+    else:
+        parts.append("1")
+    return f"{major}.{minor}.{patch}-{'.'.join(parts)}"
+
+
+def apply(version, containerfile=CONTAINERFILE, version_file=VERSION_FILE):
+    version_key(version)
+    text = containerfile.read_text(encoding="utf-8")
+    if current_version(text) == version:
+        return False
+    containerfile.write_text(PDM_VERSION_RE.sub(rf"\g<1>{version}", text, count=1), encoding="utf-8")
+    version_file.write_text(bump_catalog_version(version_file.read_text(encoding="utf-8")) + "\n", encoding="utf-8")
+    return True
+
+
+def fetch_index():
+    with urllib.request.urlopen(INDEX_URL, timeout=60) as response:
+        return gzip.decompress(response.read()).decode("utf-8")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--latest", action="store_true")
+    group.add_argument("--apply", metavar="VERSION")
+    args = parser.parse_args()
+    if args.latest:
+        print(newest_version(fetch_index()))
+        return 0
+    print("changed" if apply(args.apply) else "unchanged")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

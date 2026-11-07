@@ -16,7 +16,7 @@ import sys
 
 VERSION_FILE = "CATALOG_VERSION"
 # Paths that end up in the published module image.
-RELEASE_PATHS = ("imageroot", "ui", "build-images.sh")
+RELEASE_PATHS = ("imageroot", "ui", "app", "build-images.sh")
 SEMVER = re.compile(
     r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
     r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"

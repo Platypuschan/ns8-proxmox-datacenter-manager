@@ -113,6 +113,14 @@ Password is stored only as a hash
     Should Not Contain    ${output}    ${PDM_PASSWORD}
     Should Not Contain    ${output}    $6$
 
+Check the application image
+    ${version} =    Execute Command    runagent -m ${module_id} podman exec pdm cat /etc/pdm-version
+    Should Match Regexp    ${version}    ^[0-9]+\\.[0-9]+\\.[0-9]+\\s*$
+    ${image} =    Execute Command    runagent -m ${module_id} printenv PDM_APP_IMAGE
+    Should Contain    ${image}    /pdm-app:
+    ${postfix} =    Execute Command    runagent -m ${module_id} podman exec pdm sh -c 'command -v postfix || echo none'
+    Should Contain    ${postfix}    none
+
 Check the container is rootless and bound to loopback
     ${bind} =    Execute Command    runagent -m ${module_id} podman port pdm
     Should Contain    ${bind}    127.0.0.1:${web_port}

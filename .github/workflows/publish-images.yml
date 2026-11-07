@@ -15,6 +15,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  app:
+    name: "Application image"
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build and push the application image once per app/ content
+        shell: bash
+        env:
+          REPOBASE: ghcr.io/${{ github.repository_owner }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          image="$(.github/scripts/app-image)"
+          if skopeo inspect --raw "docker://${image}" >/dev/null 2>&1; then
+            echo "::notice::${image} already exists; app/ is unchanged."
+            exit 0
+          fi
+          # Tags are never overwritten: a new app/ content gets a new tag.
+          buildah bud -t "${image}" app
+          printf '%s' "$REGISTRY_TOKEN" | buildah login --username "$GITHUB_ACTOR" --password-stdin ghcr.io
+          buildah push "${image}" "docker://${image}"
+          echo "Published ${image}" >> "$GITHUB_STEP_SUMMARY"
+
   # A pushed tag whose image already exists, such as the release tag that
   # publish-catalog-version creates, must not rebuild and replace the tested
   # image under that tag. New tags (testing builds) still build.
@@ -52,7 +78,7 @@ jobs:
           fi
 
   publish-images:
-    needs: existing-tag
+    needs: [app, existing-tag]
     if: ${{ needs.existing-tag.outputs.build == 'true' }}
     uses: NethServer/ns8-github-actions/.github/workflows/publish-branch.yml@v1
 

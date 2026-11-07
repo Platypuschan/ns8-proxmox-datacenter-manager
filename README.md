@@ -75,18 +75,25 @@ settings (the restore path follows the ntfy module and is not yet tested on NS8)
 
 ## Design decisions
 
-- **Image.** PDM has no official container image. The module uses the community
-  image [`ghcr.io/dockur/proxmox-dm`](https://github.com/dockur/proxmox-dm)
-  (MIT, Debian 13 plus the packages from the official Proxmox repository
-  `download.proxmox.com/debian/pdm`), pinned to the tag in
-  [`build-images.sh`](build-images.sh). Proxmox does not support this way of
-  running PDM.
-- **Rootless.** The image asks for `--privileged` and prints `ERROR: Please
-  start the container with the --privileged flag!`. The check is only
-  advisory with `DEBUG=Y`, which the unit sets; as tested, everything the
-  application needs works inside the rootless user namespace
-  (`--tmpfs` for its shared memory directory). The message in the log is
-  expected.
+- **Image.** PDM has no official container image, so [`app/`](app) builds one:
+  Debian 13 (`trixie-slim`) plus the packages of the official Proxmox
+  repository `download.proxmox.com/debian/pdm`, with `PDM_VERSION` pinned in
+  [`app/Containerfile`](app/Containerfile) and the repository key checked
+  against a pinned checksum. Only what PDM needs is installed (about 280 MB
+  instead of 490 MB for the community image `dockurr/proxmox-dm`): no mail
+  server, no storage tools, no cron, no systemd. The tag of the image is the
+  Git tree hash of `app/`, CI publishes it as `ghcr.io/platypuschan/pdm-app`
+  before the module image and never overwrites a tag. Proxmox does not
+  support this way of running PDM.
+- **Updates of PDM.** A weekly workflow ([`update-pdm.yml`](.github/workflows/update-pdm.yml))
+  compares `PDM_VERSION` with the Proxmox repository and opens a pull request
+  with the new version and a raised `CATALOG_VERSION`. Nothing is merged or
+  released automatically.
+- **Rootless.** The container needs no extra privileges, only `--tmpfs` for the
+  shared-memory directory of the API. PDM prints `Unable to open syslog` at
+  start because there is no systemd journal; its log goes to the container log.
+- **Password.** The entrypoint refuses to start without `PASSWORD_HASH`; the
+  image has no default login.
 - **Traefik.** PDM only speaks HTTPS with a self-signed certificate on the
   loopback port, so the route uses `https://127.0.0.1:<port>` with
   `skip_cert_verify`. Only Traefik is exposed; the container port is bound to
@@ -106,10 +113,10 @@ connections.
 ```bash
 python3 -m unittest discover -s tests -p 'test_*.py' -v   # module logic
 cd ui && yarn install --immutable && yarn lint && yarn build
-./build-images.sh                                          # needs buildah
+./build-images.sh                                          # needs buildah; builds app/ locally first
 ```
 
-Every change to `imageroot/`, `ui/` or `build-images.sh` needs a bump of
+Every change to `imageroot/`, `ui/`, `app/` or `build-images.sh` needs a bump of
 [`CATALOG_VERSION`](CATALOG_VERSION) (checked in CI).
 
 ## License
