@@ -1,6 +1,7 @@
 *** Settings ***
 Library    SSHLibrary
 Library    String
+Resource    api.resource
 
 *** Variables ***
 ${IMAGE_URL}         ghcr.io/platypuschan/proxmox-datacenter-manager:latest
@@ -15,6 +16,10 @@ ${ADMIN_USER}        admin
 ${ADMIN_PASSWORD}    Nethesis,1234
 ${PDM_PASSWORD}      ci-first-Password-1
 ${PDM_PASSWORD_2}    ci-second-Password-2
+${clone_id}          ${EMPTY}
+${backup_id}         ${EMPTY}
+${repository}        ${EMPTY}
+${repository_created}    ${FALSE}
 
 *** Keywords ***
 Login to cluster-admin
@@ -55,6 +60,40 @@ Configure module
     ...    return_rc=True
     Should Be Equal As Integers    ${rc}    0    configure-module failed: ${output}
 
+PDM client
+    [Documentation]    Run tests/pdm_client.py on the node: BASE is the PDM URL, HOST an optional Host header.
+    [Arguments]    ${password}    ${base}    ${command}    @{args}    ${host}=${EMPTY}
+    ${hostopt} =    Set Variable If    '${host}' != ''    --host ${host}    ${EMPTY}
+    ${output}    ${rc} =    Execute Command    PDM_PASSWORD='${password}' python3 -I /tmp/pdm_client.py ${hostopt} ${base} ${command} @{args}
+    ...    return_rc=True
+    Should Be Equal As Integers    ${rc}    0    pdm_client ${command} failed: ${output}
+    RETURN    ${output}
+
+Module environment
+    [Arguments]    ${id}    ${name}
+    ${out} =    Execute Command    runagent -m ${id} printenv ${name}
+    RETURN    ${out.strip()}
+
+Loopback URL of
+    [Arguments]    ${id}
+    ${port} =    Module environment    ${id}    TCP_PORT
+    RETURN    https://127.0.0.1:${port}
+
+Module answers
+    [Arguments]    ${base}
+    ${out}    ${rc} =    Execute Command    curl -ksSf --max-time 5 -o /dev/null ${base}/    return_rc=True
+    Should Be Equal As Integers    ${rc}    0    ${out}
+
+Wait until module is up
+    [Arguments]    ${id}
+    ${base} =    Loopback URL of    ${id}
+    Wait Until Keyword Succeeds    180 seconds    3 seconds    Module answers    ${base}
+
+Marker user exists
+    [Arguments]    ${password}    ${base}    ${host}=${EMPTY}
+    ${users} =    PDM client    ${password}    ${base}    api    GET    /api2/json/access/users    host=${host}
+    Should Contain    ${users}    ci-marker@pdm
+
 *** Test Cases ***
 Add module for ${SCENARIO} scenario
     IF    r'${SCENARIO}' == 'update'
@@ -82,6 +121,16 @@ Configure initial module
     Configure module    ${PDM_PASSWORD}
     Read allocated web port
     Wait until PDM is up
+
+Install the test client
+    Put File    tests/pdm_client.py    /tmp/pdm_client.py
+
+Create marker data
+    # A user in the PDM configuration and a task in the task history must survive
+    # update, restore and clone.
+    ${base} =    Loopback URL of    ${module_id}
+    ${out} =    PDM client    ${PDM_PASSWORD}    ${base}    api    POST    /api2/json/access/users    userid=ci-marker@pdm    comment=ci-marker
+    Marker user exists    ${PDM_PASSWORD}    ${base}
 
 Update module from the previous release
     Skip If    r'${SCENARIO}' != 'update'    only the update scenario updates the module
@@ -137,6 +186,15 @@ Check the route through Traefik
     Should Be Equal As Integers    ${rc}    0
     Should Contain    ${output}    Proxmox Datacenter Manager
 
+Node shell works over a websocket through the Traefik route
+    ${out} =    PDM client    ${PDM_PASSWORD}    http://127.0.0.1    shell    host=${HOST}
+    Should Contain    ${out}    101 Switching Protocols
+    Should Contain    ${out}    ws-ok
+
+Marker data is present after install or update
+    ${base} =    Loopback URL of    ${module_id}
+    Marker user exists    ${PDM_PASSWORD}    ${base}
+
 Keep the password when configuring without one
     Configure module    ${EMPTY}
     Wait until PDM is up
@@ -163,12 +221,103 @@ Data survives a service restart
     Should Contain    ${volumes}    pdm-data
     Should Contain    ${volumes}    pdm-log
 
+Service recovers from SIGKILL
+    # A backup copies the volumes while PDM runs, which is as consistent as a
+    # crash. PDM must start cleanly from such a state.
+    ${rc} =    Execute Command    runagent -m ${module_id} podman kill pdm
+    ...    return_rc=True    return_stdout=False
+    Should Be Equal As Integers    ${rc}    0
+    Wait until module is up    ${module_id}
+    ${base} =    Loopback URL of    ${module_id}
+    Marker user exists    ${PDM_PASSWORD_2}    ${base}
+
 Backup includes cover the state
     ${include} =    Execute Command    runagent -m ${module_id} sh -c 'cat ../etc/state-include.conf'
     Should Contain    ${include}    volumes/pdm-config
     Should Contain    ${include}    volumes/pdm-data
     Should Contain    ${include}    volumes/pdm-log
     Should Contain    ${include}    state/admin.env
+
+Back up the module to the node repository
+    ${uuid} =    Module environment    ${module_id}    MODULE_UUID
+    ${node} =    Module environment    ${module_id}    NODE_ID
+    Set Suite Variable    ${module_uuid}    ${uuid}
+    Set Suite Variable    ${module_node}    ${node}
+    ${ip} =    Execute Command    redis-cli hget node/${node}/vpn ip_address
+    ${url} =    Set Variable    webdav:http://${ip.strip()}:4694
+    ${repos} =    Run task    cluster/list-backup-repositories    {}
+    ${found} =    Evaluate    [r['id'] for r in $repos['repositories'] if r['url'] == $url]
+    IF    ${found}
+        Set Suite Variable    ${repository}    ${found}[0]
+    ELSE
+        ${out} =    Run task    cluster/add-backup-repository
+        ...    {"provider":"cluster","name":"pdm-test","url":"${url}","password":"","parameters":{}}
+        Set Suite Variable    ${repository}    ${out}[id]
+        Set Suite Variable    ${repository_created}    ${TRUE}
+    END
+    ${bid} =    Run task    cluster/add-backup
+    ...    {"name":"pdm-test","instances":["${module_id}"],"repository":"${repository}","schedule":"*-12-31 03:17:00","retention":1,"enabled":true}
+    Set Suite Variable    ${backup_id}    ${bid}
+    Run task    cluster/run-backup    {"id":${backup_id}}
+    ${snapshots} =    Run task    cluster/read-backup-snapshots
+    ...    {"repository":"${repository}","path":"proxmox-datacenter-manager/${module_uuid}"}
+    Should Not Be Empty    ${snapshots}
+    Set Suite Variable    ${snapshot}    ${snapshots}[-1][id]
+
+Restore the module in place
+    ${old_id} =    Set Variable    ${module_id}
+    ${out} =    Run task    cluster/restore-module
+    ...    {"repository":"${repository}","path":"proxmox-datacenter-manager/${module_uuid}","snapshot":"${snapshot}","node":${module_node},"replace":true}
+    Should Be Equal    ${out}[module_uuid]    ${module_uuid}
+    Should Not Be Equal    ${out}[module_id]    ${old_id}
+    Set Suite Variable    ${module_id}    ${out}[module_id]
+    Set Suite Variable    ${web_port}    ${EMPTY}
+    ${rc} =    Execute Command    runagent -m ${old_id} true    return_rc=True    return_stdout=False
+    Should Not Be Equal As Integers    ${rc}    0    ${old_id} must be gone after a replace
+
+The restored module serves the saved data
+    Wait until module is up    ${module_id}
+    ${base} =    Loopback URL of    ${module_id}
+    # The password hash comes back with the backup (state/admin.env).
+    ${code} =    Login status    ${PDM_PASSWORD_2}    ${base}
+    Should Be Equal    ${code}    200
+    Marker user exists    ${PDM_PASSWORD_2}    ${base}
+    # Task history lives in the pdm-log volume: the node shell opened above.
+    ${tasks} =    PDM client    ${PDM_PASSWORD_2}    ${base}    api    GET    /api2/json/nodes/localhost/tasks
+    Should Contain    ${tasks}    termproxy
+
+The restored module has its route again
+    ${code} =    Login status    ${PDM_PASSWORD_2}    http://${HOST}    --resolve ${HOST}:80:127.0.0.1
+    Should Be Equal    ${code}    200
+    ${out} =    PDM client    ${PDM_PASSWORD_2}    http://127.0.0.1    shell    host=${HOST}
+    Should Contain    ${out}    ws-ok
+
+Clone the module
+    ${out} =    Run task    cluster/clone-module    {"module":"${module_id}","node":${module_node},"replace":false}
+    Set Suite Variable    ${clone_id}    ${out}[module_id]
+    Should Not Be Equal    ${clone_id}    ${module_id}
+    Wait until module is up    ${clone_id}
+    ${base} =    Loopback URL of    ${clone_id}
+    ${code} =    Login status    ${PDM_PASSWORD_2}    ${base}
+    Should Be Equal    ${code}    200
+    Marker user exists    ${PDM_PASSWORD_2}    ${base}
+
+A clone does not take over the route of the source
+    ${routes} =    Run task    module/traefik1/list-routes    {"expand_list":true}
+    ${same} =    Evaluate    [r['instance'] for r in $routes if r.get('host') == $HOST]
+    Log    routes for ${HOST}: ${same}    console=${True}
+    Should Be Equal    ${same}    ${{ ['${module_id}'] }}
+
+Remove the clone and the test backup
+    IF    '${clone_id}' != ''
+        Execute Command    remove-module --no-preserve ${clone_id}
+    END
+    IF    '${backup_id}' != ''
+        Run task    cluster/remove-backup    {"id":${backup_id}}
+    END
+    IF    ${repository_created}
+        Run task    cluster/remove-backup-repository    {"id":"${repository}"}
+    END
 
 Module UI loads in cluster-admin
     [Tags]    ui
