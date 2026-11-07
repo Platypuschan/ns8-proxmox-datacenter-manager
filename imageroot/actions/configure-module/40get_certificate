@@ -18,7 +18,7 @@ import pdm_options
 # of Proxmox Datacenter Manager (Certificates page) shows it. The container
 # installs it at every start (PDM_TLS_IMPORT). Failure is not fatal: the
 # container keeps its own certificate.
-options = pdm_options.read_options() or {}
+options = pdm_options.read_options() or pdm_options.normalize(None)
 if options.get("tls_import"):
     os.makedirs("tls-certs", mode=0o700, exist_ok=True)
     proc = agent.run_helper("get-certificate", "--cert-file=tls-certs/cert.pem",

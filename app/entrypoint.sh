@@ -28,7 +28,11 @@ user=www-data
 printf 'root:%s\n' "$PASSWORD_HASH" | chpasswd -e
 unset PASSWORD_HASH
 
-flag() { [[ "${!1:-0}" == 1 ]]; }
+# Without stored options (an empty options.env, e.g. after an update) the same
+# defaults apply as the pre-selected check boxes of the module settings.
+declare -A flag_default=([PDM_TLS_IMPORT]=1 [PDM_DISABLE_NAG]=1 [PDM_NS8_LAYOUT]=1 [PDM_DEBIAN_EXTRA]=1 [PDM_REPO_TEST]=0)
+flag() { [[ "${!1:-${flag_default[$1]:-0}}" == 1 ]]; }
+hide_menu="${PDM_HIDE_MENU-subscription,registry,sdn,ceph}"
 
 install -d -m 1770 -o root -g "$user" "$cfg" "$run"
 install -d -m 0750 -o root -g "$user" "$cfg/auth"
@@ -58,13 +62,14 @@ fi
 # Web interface adjustments (ns8-custom.js reads this file)
 www=/usr/share/javascript/proxmox-datacenter-manager
 hide=""
-if [[ "${PDM_HIDE_MENU:-}" =~ ^[a-z,]*$ && -n "${PDM_HIDE_MENU:-}" ]]; then
-    hide="\"${PDM_HIDE_MENU//,/\",\"}\""
+if [[ "$hide_menu" =~ ^[a-z,]*$ && -n "$hide_menu" ]]; then
+    hide="\"${hide_menu//,/\",\"}\""
 fi
 printf 'window.NS8_PDM = { layout: %s, nag: %s, hide: [%s] };\n' \
     "$(flag PDM_NS8_LAYOUT && echo true || echo false)" \
     "$(flag PDM_DISABLE_NAG && echo true || echo false)" "$hide" > "$www/js/ns8-config.js"
-sed -i "s#ns8-config.js[^\"]*\"#ns8-config.js?v=$(date +%s)\"#" "$www/index.hbs"
+# a version in the URL keeps browsers (Firefox in particular) from using cached copies
+sed -i -E "s#(ns8-(config|custom)\.js)[^\"]*\"#\1?v=$(date +%s)\"#" "$www/index.hbs"
 
 # TLS certificate of the host name, as served by Traefik
 if flag PDM_TLS_IMPORT && [[ -s /run/ns8-tls/cert.pem && -s /run/ns8-tls/key.pem ]]; then
