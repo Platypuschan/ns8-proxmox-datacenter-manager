@@ -247,7 +247,7 @@ Data survives a service restart
 
 Options are fixed after the first configuration
     ${output} =    Execute Command    api-cli run module/${module_id}/get-configuration
-    ${config} =    Evaluate    json.loads(r"""${output}""")["output"]    modules=json
+    ${config} =    Evaluate    json.loads(r"""${output}""")    modules=json
     Should Be True    ${config}[options_locked]
     Should Be True    ${config}[options][ns8_layout]
     Should Be Equal    ${config}[options][hide_menu]    ${{["subscription", "registry", "sdn", "ceph"]}}
@@ -258,7 +258,7 @@ Options are fixed after the first configuration
     Should Be Equal As Integers    ${rc}    0    configure-module failed: ${output}
     Wait until PDM is up
     ${output} =    Execute Command    api-cli run module/${module_id}/get-configuration
-    ${config} =    Evaluate    json.loads(r"""${output}""")["output"]    modules=json
+    ${config} =    Evaluate    json.loads(r"""${output}""")    modules=json
     Should Be True    ${config}[options][ns8_layout]
     Should Be Equal    ${config}[options][hide_menu]    ${{["subscription", "registry", "sdn", "ceph"]}}
 
