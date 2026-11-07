@@ -6,20 +6,25 @@ Backup Server installations. The module runs it as a rootless Podman container,
 publishes it through the node Traefik with a host name and an optional Let's
 Encrypt certificate, and includes its configuration and data in the NS8 backup.
 
-> Status: pre-release (`0.1.0-rc.1`). The CI installs the module on a real
-> NS8 node (Debian 13 and Rocky Linux 9) and checks configuration, login,
-> password change, the Traefik route, persistence over a restart and the UI.
-> **Not yet tested:** updating from a previous release, backup and restore, and
-> adding real Proxmox remotes. Test on a non-productive node first.
+> Status: first stable release (`0.1.0`). The CI installs the module on real
+> NS8 nodes (Debian 13 and Rocky Linux 9) and checks configuration, login,
+> password change, the Traefik route and certificate (including renewal),
+> persistence, backup and restore, clone, the web shell, the options, and an
+> update from the previous release.
+> **Not tested:** adding real Proxmox VE / Backup Server remotes, a Let's
+> Encrypt certificate from a real CA, and the web interface adjustments in a
+> real Firefox (checked in Chromium and Playwright Firefox only). Make a backup
+> before updating. This is an unofficial community module, not supported by
+> Proxmox.
 
 ## Install
 
 Add the [Platypuschan NS8 module catalog](https://github.com/Platypuschan/ns8-modules#add-the-repository)
-once this module is listed there, or install from the command line with a
-released version from [`CATALOG_VERSION`](CATALOG_VERSION):
+and install *Proxmox Datacenter Manager* in the Software Center, or install from
+the command line with a released version from [`CATALOG_VERSION`](CATALOG_VERSION):
 
 ```bash
-add-module ghcr.io/platypuschan/proxmox-datacenter-manager:0.1.0-rc.1 1
+add-module ghcr.io/platypuschan/proxmox-datacenter-manager:0.1.0 1
 ```
 
 The command returns an instance ID such as `proxmox-datacenter-manager1`.
