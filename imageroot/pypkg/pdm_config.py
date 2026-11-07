@@ -15,6 +15,7 @@ import re
 import subprocess
 
 ADMIN_ENV = "admin.env"
+RESTART_MARKER = "restart-needed"
 MIN_LENGTH = 8
 MAX_LENGTH = 128
 HASH_RE = re.compile(r"^\$6\$[./0-9A-Za-z]{1,16}\$[./0-9A-Za-z]{86}$")
@@ -80,3 +81,16 @@ def write_admin_password(password, state_dir=None):
         if os.path.exists(tmp):
             os.unlink(tmp)
     os.chmod(path, 0o600)
+    # Tell 80start_services that the running container has the old password.
+    with open(os.path.join(os.path.dirname(path), RESTART_MARKER), "w", encoding="utf-8"):
+        pass
+
+
+def take_restart_marker(state_dir=None):
+    """Return True once if a new password was written since the last call."""
+    path = os.path.join(state_dir or os.getcwd(), RESTART_MARKER)
+    try:
+        os.unlink(path)
+        return True
+    except FileNotFoundError:
+        return False
