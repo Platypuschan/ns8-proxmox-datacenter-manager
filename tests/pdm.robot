@@ -96,6 +96,11 @@ Served certificate is the Traefik certificate
     Should Contain    ${expected}    Fingerprint=
     Should Be Equal    ${served}    ${expected}
 
+Served certificate has fingerprint
+    [Arguments]    ${expected}
+    ${served} =    Execute Command    echo | openssl s_client -connect 127.0.0.1:${web_port} 2>/dev/null | openssl x509 -noout -fingerprint -sha256
+    Should Be Equal    ${served.strip()}    ${expected}
+
 Module answers
     [Arguments]    ${base}
     ${out}    ${rc} =    Execute Command    curl -ksSf --max-time 5 -o /dev/null ${base}/    return_rc=True
@@ -286,6 +291,22 @@ All packages are correctly installed
     FOR    ${package}    IN    proxmox-datacenter-manager-meta    proxmox-datacenter-manager    ifupdown2    proxmox-mail-forward    proxmox-offline-mirror-helper    zfsutils-linux
         Should Not Be Empty    ${versions}[${package}]    ${package} is not installed
     END
+
+A renewed Traefik certificate reaches PDM
+    [Documentation]    Uploads a new custom certificate for the host name to the default Traefik; the
+    ...    certificate-changed event must make the module fetch it and restart PDM.
+    Execute Command    openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/renew.key -out /tmp/renew.crt -days 3 -subj "/CN=${HOST}" -addext "subjectAltName=DNS:${HOST}"
+    ${expected} =    Execute Command    openssl x509 -in /tmp/renew.crt -noout -fingerprint -sha256
+    ${cert} =    Execute Command    base64 -w0 /tmp/renew.crt
+    ${key} =    Execute Command    base64 -w0 /tmp/renew.key
+    ${payload} =    Evaluate    json.dumps({"certFile": $cert.strip(), "keyFile": $key.strip()})    modules=json
+    ${output}    ${rc} =    Execute Command    api-cli run module/traefik1/upload-certificate --data '${payload}'
+    ...    return_rc=True
+    Should Be Equal As Integers    ${rc}    0    upload-certificate failed: ${output}
+    Wait Until Keyword Succeeds    180 seconds    5 seconds    Served certificate has fingerprint    ${expected.strip()}
+    Wait until PDM is up
+    ${code} =    Login status    ${PDM_PASSWORD_2}
+    Should Be Equal    ${code}    200
 
 Service recovers from SIGKILL
     # A backup copies the volumes while PDM runs, which is as consistent as a
