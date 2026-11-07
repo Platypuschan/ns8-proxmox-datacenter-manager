@@ -5,8 +5,12 @@
 """Find the newest Proxmox Datacenter Manager release and prepare the bump.
 
   update-pdm --latest          print the newest version in the Proxmox repository
+  update-pdm --base-latest     print the current digest of debian:trixie-slim
   update-pdm --apply VERSION   set PDM_VERSION in app/Containerfile and raise
                                CATALOG_VERSION so that CI publishes a new module
+  update-pdm --update          apply a newer PDM version and/or base image digest
+                               with one CATALOG_VERSION bump; print a summary,
+                               or nothing if everything is current
 
 The repository index is only used to propose a change. The image build installs
 the package through apt, which verifies the signed repository metadata.
@@ -14,8 +18,10 @@ the package through apt, which verifies the signed repository metadata.
 
 import argparse
 import gzip
+import json
 import re
 import sys
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -27,6 +33,9 @@ INDEX_URL = (
     "pdm-no-subscription/binary-amd64/Packages.gz"
 )
 PDM_VERSION_RE = re.compile(r"^(ARG PDM_VERSION=)(\S+)$", re.MULTILINE)
+BASE_RE = re.compile(r"^(ARG BASE_IMAGE=docker\.io/library/debian:trixie-slim@)(sha256:[0-9a-f]{64})$", re.MULTILINE)
+BASE_REPOSITORY = "library/debian"
+BASE_TAG = "trixie-slim"
 
 
 def version_key(text):
@@ -78,14 +87,59 @@ def bump_catalog_version(text):
     return f"{major}.{minor}.{patch}-{'.'.join(parts)}"
 
 
-def apply(version, containerfile=CONTAINERFILE, version_file=VERSION_FILE):
-    version_key(version)
+def current_base(containerfile_text):
+    match = BASE_RE.search(containerfile_text)
+    if not match:
+        raise ValueError("ARG BASE_IMAGE with a sha256 digest not found in app/Containerfile")
+    return match.group(2)
+
+
+def rewrite(containerfile, version_file, version=None, base=None):
+    """Apply a new PDM version and/or base digest; bump CATALOG_VERSION once."""
     text = containerfile.read_text(encoding="utf-8")
-    if current_version(text) == version:
-        return False
-    containerfile.write_text(PDM_VERSION_RE.sub(rf"\g<1>{version}", text, count=1), encoding="utf-8")
-    version_file.write_text(bump_catalog_version(version_file.read_text(encoding="utf-8")) + "\n", encoding="utf-8")
-    return True
+    changes = []
+    if version is not None:
+        version_key(version)
+        if current_version(text) != version:
+            text = PDM_VERSION_RE.sub(rf"\g<1>{version}", text, count=1)
+            changes.append(f"PDM {version}")
+    if base is not None:
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", base):
+            raise ValueError(f"invalid digest: {base!r}")
+        if current_base(text) != base:
+            text = BASE_RE.sub(rf"\g<1>{base}", text, count=1)
+            changes.append(f"base image {base[:19]}")
+    if changes:
+        containerfile.write_text(text, encoding="utf-8")
+        version_file.write_text(bump_catalog_version(version_file.read_text(encoding="utf-8")) + "\n", encoding="utf-8")
+    return changes
+
+
+def apply(version, containerfile=CONTAINERFILE, version_file=VERSION_FILE):
+    return bool(rewrite(containerfile, version_file, version=version))
+
+
+def fetch_base_digest():
+    """Digest of the multi-arch index behind debian:trixie-slim (Docker Hub)."""
+    scope = urllib.parse.quote(f"repository:{BASE_REPOSITORY}:pull")
+    with urllib.request.urlopen(
+        f"https://auth.docker.io/token?service=registry.docker.io&scope={scope}", timeout=30
+    ) as response:
+        token = json.load(response)["token"]
+    request = urllib.request.Request(
+        f"https://registry-1.docker.io/v2/{BASE_REPOSITORY}/manifests/{BASE_TAG}",
+        method="HEAD",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.oci.image.index.v1+json, "
+            "application/vnd.docker.distribution.manifest.list.v2+json",
+        },
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        digest = response.headers["Docker-Content-Digest"]
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest or ""):
+        raise ValueError(f"unexpected digest from the registry: {digest!r}")
+    return digest
 
 
 def fetch_index():
@@ -98,9 +152,19 @@ def main():
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--latest", action="store_true")
     group.add_argument("--apply", metavar="VERSION")
+    group.add_argument("--base-latest", action="store_true")
+    group.add_argument("--update", action="store_true")
     args = parser.parse_args()
     if args.latest:
         print(newest_version(fetch_index()))
+        return 0
+    if args.base_latest:
+        print(fetch_base_digest())
+        return 0
+    if args.update:
+        changes = rewrite(CONTAINERFILE, VERSION_FILE, newest_version(fetch_index()), fetch_base_digest())
+        if changes:
+            print(", ".join(changes))
         return 0
     print("changed" if apply(args.apply) else "unchanged")
     return 0

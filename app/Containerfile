@@ -6,7 +6,10 @@
 # (pdm-no-subscription). Only what PDM needs is installed: no mail server,
 # no storage tools, no systemd, no stubbed commands.
 
-FROM docker.io/library/debian:trixie-slim
+# Debian 13 slim, pinned by digest. The weekly update workflow proposes a newer
+# digest (security fixes of the base layer) as a pull request.
+ARG BASE_IMAGE=docker.io/library/debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
+FROM ${BASE_IMAGE}
 
 # Raise these two values to update PDM; the CI image tag follows the content of
 # this directory, so a change publishes a new image and never replaces one.

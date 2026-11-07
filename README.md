@@ -87,8 +87,9 @@ settings (not yet tested on NS8).
   before the module image and never overwrites a tag. Proxmox does not
   support this way of running PDM.
 - **Updates of PDM.** A weekly workflow ([`update-pdm.yml`](.github/workflows/update-pdm.yml))
-  compares `PDM_VERSION` with the Proxmox repository and opens a pull request
-  with the new version and a raised `CATALOG_VERSION`. Nothing is merged or
+  compares `PDM_VERSION` with the Proxmox repository and the pinned digest of
+  `debian:trixie-slim` with Docker Hub, and opens a pull request with the new
+  version and/or digest and a raised `CATALOG_VERSION`. Nothing is merged or
   released automatically.
 - **Rootless.** The container needs no extra privileges, only `--tmpfs` for the
   shared-memory directory of the API. PDM prints `Unable to open syslog` at
