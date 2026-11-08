@@ -135,8 +135,22 @@
     });
   }
 
+  // Custom views have a second subscription notice in DashboardStatusRow.
+  // Match its NotFound icon and the surrounding refresh/settings controls, not
+  // translated text. Hide only the notice and leave Yew's DOM nodes intact.
+  function applyViewNag() {
+    Array.prototype.forEach.call(document.querySelectorAll(".pwt-pointer"), function (notice) {
+      var row = notice.parentElement;
+      if (notice.querySelector("i.fa-times-circle") && row && row.classList.contains("pwt-d-flex") &&
+          row.querySelector("i.fa-refresh") && row.querySelector("i.fa-cogs")) {
+        setHidden(notice, true);
+      }
+    });
+  }
+
   // Subscription notice: confirm "Continue" on the dialog that points to pdm.proxmox.com
   function applyNag() {
+    applyViewNag();
     Array.prototype.forEach.call(document.querySelectorAll("dialog.pwt-outer-dialog"), function (dialog) {
       if (dialog.getAttribute("data-ns8-nag") || (dialog.textContent || "").indexOf("pdm.proxmox.com") === -1) return;
       dialog.setAttribute("data-ns8-nag", "1");

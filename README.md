@@ -75,7 +75,9 @@ four menu entries hidden, pdm-test repository off.
   it on every `certificate-changed` event (the container restarts when it
   changes).
 - `disable_nag`: confirm the "no subscription" dialog automatically (the one
-  that appears for example on *Administration / Updates / Refresh*).
+  that appears for example on *Administration / Updates / Refresh*) and hide
+  the subscription warning in all custom *Views*. This only changes the UI;
+  subscription status, repository access and support eligibility are unchanged.
 - `ns8_layout`: menu order Dashboard, Views, Notes, Remotes, Guests,
   Configuration; the button *Shell* replaces the theme button and
   *Administration* replaces *Documentation* in the top bar, both removed from
