@@ -1,10 +1,7 @@
 name: Update Proxmox Datacenter Manager
 
-# Look every week for a new Proxmox Datacenter Manager release and for a new
-# digest of the Debian base image. A change gets a pull request that raises
-# PDM_VERSION and/or BASE_IMAGE in app/Containerfile and the CATALOG_VERSION;
-# nothing is merged or released automatically.
-
+# Weekly PDM, Debian base and installed runtime dependency proposals.
+# Nothing is merged or released automatically.
 on:
   schedule:
     - cron: "41 5 * * 1"
@@ -15,6 +12,11 @@ permissions:
   pull-requests: write
   actions: write
 
+# Scheduled and manual runs must not race to open competing updater PRs.
+concurrency:
+  group: update-pdm
+  cancel-in-progress: false
+
 jobs:
   update:
     runs-on: ubuntu-24.04
@@ -24,6 +26,11 @@ jobs:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
 
+      - name: Install runtime inspection tools
+        run: |
+          sudo apt-get update -o APT::Update::Error-Mode=any
+          sudo apt-get install -y --no-install-recommends podman skopeo
+
       - name: Propose the update
         shell: bash
         env:
@@ -31,13 +38,31 @@ jobs:
           DEFAULT_BRANCH: ${{ github.ref_name }}
         run: |
           set -Eeuo pipefail
-          summary="$(.github/scripts/update-pdm --update)"
+          # Keep one proposal in flight, even if next week's targets differ.
+          # Do not silently supersede an unreviewed PDM/UI combination.
+          open_updates="$(gh pr list --state open --limit 1000 --json headRefName --jq '.[] | .headRefName | select(startswith("update-pdm-"))')"
+          if [[ -n "${open_updates}" ]]; then
+            echo "::notice::Review the existing updater PR first: ${open_updates}"
+            exit 0
+          fi
+          # Resolve BEFORE touching app/: app-image rejects a dirty app tree.
+          runtime_tag="$(.github/scripts/app-image)"
+          runtime_digest="$(skopeo inspect --format '{{.Digest}}' "docker://${runtime_tag}")"
+          if [[ ! "${runtime_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Registry did not return an immutable runtime digest."
+            exit 1
+          fi
+          runtime_image="${runtime_tag%:*}@${runtime_digest}"
+          summary="$(.github/scripts/update-pdm --update --runtime-image "${runtime_image}")"
           if [[ -z "${summary}" ]]; then
-            echo "::notice::PDM and the base image are current."
+            echo "::notice::PDM, the base image and runtime packages are current."
             exit 0
           fi
           echo "Changes: ${summary}"
-          branch="update-pdm-$(git diff -- app/Containerfile | sha256sum | cut -c1-12)"
+          # Stage new refresh files too; hash ALL updater changes, not only the
+          # recipe. Package-only proposals must have distinct immutable tags.
+          git add -- app CATALOG_VERSION
+          branch="update-pdm-$(git diff --cached --binary -- app CATALOG_VERSION | sha256sum | cut -c1-12)"
           if git ls-remote --exit-code --heads origin "${branch}" >/dev/null 2>&1; then
             echo "::notice::${branch} already exists."
             exit 0
@@ -45,11 +70,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch --create "${branch}"
-          git commit --all --message "Update: ${summary}"
+          git commit --message "Update: ${summary}"
           git push origin "${branch}"
           gh pr create --base "${DEFAULT_BRANCH}" --head "${branch}" \
             --title "Update: ${summary}" \
-            --body "Automatic proposal (${summary}) in app/Containerfile and a new CATALOG_VERSION. For a new PDM version read the [release notes](https://pdm.proxmox.com/docs/) first. Merging publishes a new module version."
+            --body "Automatic proposal (${summary}) in app/ with one CATALOG_VERSION bump. Runtime package targets were checked against ${runtime_image}; package-refresh.json is a cumulative rebuild request, not an apt lockfile. PDM backend/UI/client/docs/meta remain held during dependency upgrades. For a new PDM version read the [release notes](https://pdm.proxmox.com/docs/) first. WARNING: the customized UI source (PDM_UI_COMMIT/PDM_UI_VERSION) is not automatically upgraded; review possible backend/UI drift and rebase/test the UI separately when needed. Merging publishes a new module version."
           # Pushes and pull requests created with GITHUB_TOKEN do not start
           # workflows, so start the checks explicitly.
           gh workflow run validate.yml --ref "${branch}"

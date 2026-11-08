@@ -72,15 +72,19 @@ LABEL org.opencontainers.image.title="Proxmox Datacenter Manager (NS8 module run
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# This cumulative request is a runtime-only cache key: new dependency targets
+# must invalidate the apt layer even when the PDM/base pins have not changed.
+COPY package-refresh.json /usr/share/ns8/package-refresh.json
+
 RUN set -eux; \
-    apt-get update; \
+    apt-get update -o APT::Update::Error-Mode=any; \
     apt-get install -y --no-install-recommends ca-certificates curl; \
     curl -fsSL -o /usr/share/keyrings/proxmox-archive-keyring.gpg \
         https://enterprise.proxmox.com/debian/proxmox-archive-keyring-trixie.gpg; \
     echo "${PROXMOX_KEYRING_SHA256}  /usr/share/keyrings/proxmox-archive-keyring.gpg" | sha256sum -c -; \
     printf 'Types: deb\nURIs: http://download.proxmox.com/debian/pdm\nSuites: trixie\nComponents: pdm-no-subscription\nSigned-By: /usr/share/keyrings/proxmox-archive-keyring.gpg\n' \
         > /etc/apt/sources.list.d/pdm.sources; \
-    apt-get update; \
+    apt-get update -o APT::Update::Error-Mode=any; \
     # The maintainer scripts call systemctl and try to start the services; both
     # are meaningless while building. Remove the stubs again afterwards.
     printf '#!/bin/sh\nexit 0\n' > /usr/local/bin/systemctl; chmod +x /usr/local/bin/systemctl; \
@@ -91,7 +95,9 @@ RUN set -eux; \
         > /etc/apt/preferences.d/99-ns8-container; \
     apt-get install -y --no-install-recommends \
         "proxmox-datacenter-manager=${PDM_VERSION}" \
-        "proxmox-datacenter-manager-ui=${PDM_UI_VERSION}" proxmox-datacenter-manager-client \
+        "proxmox-datacenter-manager-ui=${PDM_UI_VERSION}" \
+        "proxmox-datacenter-manager-client=${PDM_VERSION}" \
+        "proxmox-datacenter-manager-docs=${PDM_VERSION}" \
         ifupdown2 proxmox-mail-forward proxmox-offline-mirror-helper zfsutils-linux \
         openssl tini; \
     # Placeholder for proxmox-datacenter-manager-meta: the real package depends
@@ -109,6 +115,9 @@ RUN set -eux; \
     # existing configuration files.
     echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections; \
     printf 'Dpkg::Options { "--force-confdef"; "--force-confold"; };\n' > /etc/apt/apt.conf.d/90-ns8-noninteractive; \
+    # Refresh dependencies independently of PDM; holds and service stubs remain
+    # active throughout the upgrade, as do the kernel/init-system exclusions.
+    apt-get --with-new-pkgs upgrade -y; \
     rm -f /usr/local/bin/systemctl /usr/sbin/policy-rc.d; \
     # curl stays: it is a dependency of proxmox-datacenter-manager.
     rm -f /etc/apt/sources.list.d/pdm-enterprise.* /etc/apt/sources.list.d/ceph.*; \
