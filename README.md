@@ -173,11 +173,46 @@ settings (not yet tested on NS8).
   Git tree hash of `app/`, CI publishes it as `ghcr.io/platypuschan/pdm-app`
   before the module image and never overwrites a tag. Proxmox does not
   support this way of running PDM.
-- **Updates of PDM.** A weekly workflow ([`update-pdm.yml`](.github/workflows/update-pdm.yml))
-  compares `PDM_VERSION` with the Proxmox repository and the pinned digest of
-  `debian:trixie-slim` with Docker Hub, and opens a pull request with the new
-  version and/or digest and a raised `CATALOG_VERSION`. Nothing is merged or
-  released automatically.
+- **Updates of PDM and runtime packages.** The weekly workflow
+  ([`update-pdm.yml`](.github/workflows/update-pdm.yml), Mondays 05:41 UTC)
+  checks the PDM backend package, the Debian base-image digest, and available
+  package upgrades in the current immutable application image. Package-only
+  changes update `app/package-refresh.json`, so the `app/` content hash changes
+  and CI builds a new runtime instead of reusing the old image. The marker is
+  also a Containerfile input before the runtime apt layer, invalidating that
+  layer's build cache. It records requested refresh targets, not an apt lockfile
+  or an assertion that every CVE is fixed. The build upgrades non-held packages;
+  PDM backend/UI/client/docs/meta remain held and are not advanced by this path.
+  A proposal raises `CATALOG_VERSION` once, including combined PDM/base/package
+  changes. A failed package-index refresh fails the check rather than reporting
+  the image as current. Runtime build dependencies and the NS8 host's packages
+  are outside this installed-runtime package check.
+- **Patched native PDM UI.** Backend updates do not change `PDM_UI_COMMIT`,
+  `PDM_UI_VERSION` or the pinned Rust/Yew build dependencies automatically.
+  Review the upstream UI package/source, backend compatibility and
+  `app/pdm-ui.patch` together before merging a PDM upgrade. CI builds the pinned
+  patched UI and runs the packaged-WASM browser regressions, but those tests
+  are not a substitute for reviewing a newer upstream UI.
+- **Renovate.** [`renovate.json`](renovate.json) owns GitHub Actions, the Node 24
+  build toolchain, Playwright test pins and the NS8 Vue UI dependencies/Yarn
+  lockfile. It does not modify `app/`; the unused root `package.json` is disabled
+  without excluding `ui/package.json`. All Node consumers (including
+  `build-images.sh`) and both Playwright runners are grouped for coordinated
+  updates. Node stays on major 24 until the Corepack/Yarn bootstrap has been
+  migrated deliberately. Renovate checks during Monday 06:00–09:59 Europe/Berlin,
+  subject to the hosted bot's execution schedule. At most three PRs are open
+  concurrently, with one new PR per hour. Major updates need approval in the
+  Dependency Dashboard before a PR is created; approval does not merge it.
+  Weekly lockfile maintenance is enabled. Changes affecting `ui/` or the Node
+  build recipe automatically patch-bump `CATALOG_VERSION` using Renovate's
+  `bumpVersions` (including lockfile-only updates); no hosted post-upgrade
+  scripts or extra write tokens are required. Branches rebase when behind main
+  so parallel dependency proposals do not reuse an already published version.
+- **Release and installation gates.** Neither updater merges PRs automatically.
+  Review and merge only after validation, packaged-UI and NS8 installation/update
+  checks pass. A successful main pipeline promotes the tested module and creates
+  its release; the separate catalog repository refreshes every six hours.
+  Publication does not install an update on an existing NS8 instance.
 - **Rootless.** The container needs no extra privileges, only `--tmpfs` for the
   shared-memory directory of the API. PDM prints `Unable to open syslog` at
   start because there is no systemd journal; its log goes to the container log.

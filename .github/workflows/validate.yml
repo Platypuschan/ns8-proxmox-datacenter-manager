@@ -13,6 +13,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  renovate:
+    name: Renovate configuration
+    runs-on: ubuntu-24.04
+    container: ghcr.io/renovatebot/renovate:44.222.4
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: renovate-config-validator --strict renovate.json
+
   static:
     name: Static checks
     runs-on: ubuntu-latest

@@ -1,0 +1,83 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "Europe/Berlin",
+  "schedule": ["* 6-9 * * 1"],
+  "automerge": false,
+  "dependencyDashboard": true,
+  "prConcurrentLimit": 3,
+  "prHourlyLimit": 1,
+  "rebaseWhen": "behind-base-branch",
+  "enabledManagers": ["github-actions", "dockerfile", "devcontainer", "npm", "custom.regex"],
+  "ignorePaths": ["app/**", "**/node_modules/**"],
+  "prBodyNotes": [
+    "No automatic merge or deployment. PDM/backend, patched native PDM UI and Debian runtime refreshes are owned by update-pdm.yml, not Renovate.",
+    "Image-affecting updates include a CATALOG_VERSION patch bump. Rebase onto current main before merging; the normal build, browser and NS8 lifecycle checks must pass."
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["* 6-9 * * 1"]
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["build-images.sh"],
+      "matchStrings": ["NODE_IMAGE=\"docker\\.io/library/(?<depName>node):(?<currentValue>[0-9.]+)\""],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [".github/workflows/validate.yml", ".github/workflows/publish-images.yml"],
+      "matchStrings": ["(?<depName>playwright)@(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)"],
+      "datasourceTemplate": "npm"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "The unused root manifest is not the shipped NS8 UI",
+      "matchFileNames": ["/^package\\.json$/"],
+      "enabled": false
+    },
+    {
+      "description": "Keep all Node consumers coordinated on the current Corepack-capable LTS major",
+      "matchPackageNames": ["node", "actions/node-versions"],
+      "allowedVersions": ">=24.0.0 <25.0.0",
+      "groupName": "Node.js 24 build toolchain"
+    },
+    {
+      "description": "Keep fixture and packaged-WASM browser runners aligned",
+      "matchPackageNames": ["playwright"],
+      "groupName": "Playwright browser tests"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "matchDepTypes": ["action", "workflow", "github-runner"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin"],
+      "groupName": "GitHub Actions non-major updates"
+    },
+    {
+      "matchManagers": ["npm"],
+      "matchFileNames": ["ui/package.json"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "NS8 UI non-major dependencies"
+    },
+    {
+      "description": "Do not propose Vue 3 or other migrations as routine maintenance",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Dependency changes in build inputs need a fresh NS8 module version",
+      "matchFileNames": ["ui/**", "build-images.sh"],
+      "bumpVersions": [
+        {
+          "name": "NS8 catalog release",
+          "filePatterns": ["CATALOG_VERSION"],
+          "matchStrings": ["^(?<version>[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?)\\s*$"],
+          "bumpType": "patch"
+        }
+      ]
+    }
+  ]
+}
