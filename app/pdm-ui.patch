@@ -1,5 +1,5 @@
 diff --git a/ui/src/pve/mod.rs b/ui/src/pve/mod.rs
-index f069ec75..81bd1a0c 100644
+index f069ec75..1deca908 100644
 --- a/ui/src/pve/mod.rs
 +++ b/ui/src/pve/mod.rs
 @@ -139,6 +139,7 @@ impl GuestInfo {
@@ -78,17 +78,36 @@ index f069ec75..81bd1a0c 100644
              PveTreeNode::Node(node) => {
                  let pve_manager = match &self.updates.data {
                      Some(updates) => extract_package_version(updates, &node.node, "pve-manager"),
-@@ -239,6 +270,9 @@ impl LoadableComponent for PveRemoteComp {
+@@ -239,6 +270,28 @@ impl LoadableComponent for PveRemoteComp {
              }
          };
          let content = NavigationContainer::new().with_child(content);
++        let guest_back: Option<Html> = matches!(
++            &self.view, PveTreeNode::Qemu(_) | PveTreeNode::Lxc(_)
++        ).then(|| {
++            use yew_router::prelude::RouterScopeExt;
++            let link = link.clone();
++            let remote = remote.clone();
++            Button::new(tr!("Back to Resources"))
++                .icon_class("fa fa-arrow-left")
++                .on_activate(move |_| {
++                    if let Some(nav) = link.navigator() {
++                        nav.push(&yew_router::AnyRoute::new(format!(
++                            "/remote-{remote}/_/datacenter"
++                        )));
++                    }
++                    link.send_message(Msg::SelectedView(PveTreeNode::Root));
++                })
++                .into()
++        });
 +        let content = remote::PveRemotePanel::new(
 +            remote.clone(), resources, content.into(), self.view == PveTreeNode::Root,
++            guest_back,
 +        );
  
          let link = ctx.link();
  
-@@ -249,73 +283,81 @@ impl LoadableComponent for PveRemoteComp {
+@@ -249,73 +302,64 @@ impl LoadableComponent for PveRemoteComp {
              .with_child(tr! {"Remote '{0}'", ctx.props().remote})
              .into();
  
@@ -187,16 +206,7 @@ index f069ec75..81bd1a0c 100644
 -                                    self.loading(),
 -                                    link.callback(Msg::SelectedView),
 -                                    {
-+                                            }),
-+                                        ),
-+                                )
-+                            }))
-+                            .with_optional_child((self.view != PveTreeNode::Root).then(|| {
-+                                use yew_router::prelude::RouterScopeExt;
-+                                Button::new(tr!("Back to Resources"))
-+                                    .icon_class("fa fa-arrow-left")
-+                                    .on_activate({
-                                         let link = link.clone();
+-                                        let link = link.clone();
 -                                        move |_| link.send_reload()
 -                                    },
 -                                )),
@@ -210,16 +220,9 @@ index f069ec75..81bd1a0c 100644
 -                        .with_child(content)
 -                        .style("flex", "1 1 0"),
 -                );
-+                                        let remote = remote.clone();
-+                                        move |_| {
-+                                            if let Some(nav) = link.navigator() {
-+                                                nav.push(&yew_router::AnyRoute::new(format!(
-+                                                    "/remote-{remote}/_/datacenter"
-+                                                )));
-+                                            }
-+                                            link.send_message(Msg::SelectedView(PveTreeNode::Root));
-+                                        }
-+                                    })
++                                            }),
++                                        ),
++                                )
 +                            })),
 +                    ),
 +            )
@@ -234,7 +237,7 @@ index f069ec75..81bd1a0c 100644
          NavigationContainer::new()
              .with_child(Panel::new().class(FlexFit).with_child(content))
              .into()
-@@ -346,7 +388,7 @@ impl LoadableComponent for PveRemoteComp {
+@@ -346,7 +390,7 @@ impl LoadableComponent for PveRemoteComp {
              let client = crate::pdm_client();
              let resources = client.pve_cluster_resources(&remote, None).await;
              let updates = client.pve_cluster_updates(&remote).await;
@@ -244,10 +247,10 @@ index f069ec75..81bd1a0c 100644
          })
      }
 diff --git a/ui/src/pve/remote/mod.rs b/ui/src/pve/remote/mod.rs
-index 4da0a9bc..25718a9f 100644
+index 4da0a9bc..956bccb5 100644
 --- a/ui/src/pve/remote/mod.rs
 +++ b/ui/src/pve/remote/mod.rs
-@@ -6,19 +6,22 @@ use yew::virtual_dom::{VComp, VNode};
+@@ -6,19 +6,23 @@ use yew::virtual_dom::{VComp, VNode};
  use pwt::css::{AlignItems, ColorScheme};
  use pwt::prelude::*;
  use pwt::props::{ContainerBuilder, WidgetBuilder};
@@ -264,17 +267,18 @@ index 4da0a9bc..25718a9f 100644
 +    pub resources: Html,
 +    pub content: Html,
 +    pub show_resources: bool,
++    pub guest_back: Option<Html>,
  }
  
  impl PveRemotePanel {
 -    pub fn new(remote: String) -> Self {
 -        yew::props!(Self { remote })
-+    pub fn new(remote: String, resources: Html, content: Html, show_resources: bool) -> Self {
-+        yew::props!(Self { remote, resources, content, show_resources })
++    pub fn new(remote: String, resources: Html, content: Html, show_resources: bool, guest_back: Option<Html>) -> Self {
++        yew::props!(Self { remote, resources, content, show_resources, guest_back })
      }
  }
  
-@@ -50,9 +53,29 @@ impl yew::Component for PveRemotePanelComp {
+@@ -50,9 +54,32 @@ impl yew::Component for PveRemotePanelComp {
  
          TabPanel::new()
              .router(true)
@@ -298,6 +302,9 @@ index 4da0a9bc..25718a9f 100644
 +                            .with_child(Container::new().class(pwt::css::FlexFit)
 +                                .style("display", if props.show_resources { "flex" } else { "none" })
 +                                .with_child(props.resources.clone()))
++                            .with_optional_child(props.guest_back.clone().map(|back| {
++                                Row::new().padding_bottom(2).with_child(back)
++                            }))
 +                            .with_optional_child((!props.show_resources).then(|| props.content.clone()))
 +                    ),
 +            )

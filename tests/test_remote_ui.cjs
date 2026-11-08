@@ -7,6 +7,13 @@ const path = require('node:path');
 const base = process.env.PDM_TEST_URL || 'https://127.0.0.1:18443';
 const node = {type:'node', id:'remote/cluster-home/node/pve-1', node:'pve-1', status:'online', level:'',
   'cgroup-mode':2, cpu:0.1, maxcpu:4, maxmem:8589934592, mem:1024, uptime:123};
+const guest = {node:'pve-1',cpu:0,maxcpu:2,disk:0,maxdisk:4294967296,maxmem:4294967296,
+  mem:0,pool:'',status:'stopped',tags:[],template:false,uptime:0};
+const resources = [node,
+  {...guest,type:'qemu',id:'remote/cluster-home/guest/100',vmid:100,name:'fixture-vm'},
+  {...guest,type:'lxc',id:'remote/cluster-home/guest/105',vmid:105,name:'fixture-ct'},
+  {type:'storage',id:'remote/cluster-home/storage/pve-1/local',node:'pve-1',storage:'local',
+    disk:0,maxdisk:8589934592,status:'available',shared:false}];
 async function setup(t, deferFirst = false) {
   const browser = await chromium.launch({headless:true});
   t.after(()=>browser.close());
@@ -26,7 +33,7 @@ async function setup(t, deferFirst = false) {
     if (url.pathname.endsWith('/pve/remotes/cluster-home/resources')) {
       await firstResult;
       return route.fulfill({json:online
-      ? {success:true,data:[node]}
+      ? {success:true,data:resources}
       : {success:false,message:'Fixture: remote connection refused',data:null}});
     }
     if (url.pathname.endsWith('/pve/remotes/cluster-home/options')) return route.fulfill({json:{success:true,data:{description:'Fixture notes'}}});
@@ -40,6 +47,44 @@ async function setup(t, deferFirst = false) {
   if (!deferFirst) await page.getByText('Host CPU usage (avg.)',{exact:true}).waitFor();
   t.after(()=>assert.deepEqual(errors,[]));
   return {page, releaseFirst, setOnline:value=>{online=value;}};
+}
+
+for (const [name, title] of [['fixture-vm', /^VM .*fixture-vm/], ['fixture-ct', /^CT .*fixture-ct/]]) {
+  test(`Back to Resources is below the right tabs only in guest details: ${name}`,async t=>{
+    const {page}=await setup(t);
+    const back=page.getByText('Back to Resources',{exact:true});
+    assert.equal(await back.count(),0,'no Back button in remote overview');
+    const tree=page.locator('[data-ns8-remote-resources]');
+    await tree.getByText(new RegExp(name)).click();
+    await back.waitFor();
+    const box=await back.boundingBox();
+    const tab=await page.locator('[data-ns8-remote-tabs] a.pwt-nav-link').filter({hasText:'Resources'}).boundingBox();
+    const heading=await page.getByText(title).boundingBox();
+    assert.ok(box.x >= tab.x-1,'Back must be in the right panel, not the summary');
+    assert.ok(box.y >= tab.y+tab.height,'Back must be below the remote tab bar');
+    assert.ok(box.y+box.height <= heading.y,'Back must precede the guest title');
+    if(process.env.PDM_TEST_ARTIFACT_DIR) await page.screenshot({path:path.join(process.env.PDM_TEST_ARTIFACT_DIR,`${name}-back.png`)});
+    await page.locator('[data-ns8-remote-tabs] a.pwt-nav-link').filter({hasText:'Tasks'}).click();
+    await page.getByText('Start Time',{exact:true}).waitFor();
+    assert.equal(await back.isVisible(),false,'no guest Back button on Tasks');
+    await page.locator('[data-ns8-remote-tabs] a.pwt-nav-link').filter({hasText:'Notes'}).click();
+    await page.getByText('Fixture notes',{exact:false}).waitFor();
+    assert.equal(await back.isVisible(),false,'no guest Back button on Notes');
+    await page.locator('[data-ns8-remote-tabs] a.pwt-nav-link').filter({hasText:'Resources'}).click();
+    if(!(await back.isVisible())) await tree.getByText(new RegExp(name)).click();
+    await back.click();
+    await tree.getByText('Datacenter',{exact:true}).waitFor();
+    assert.equal(await back.count(),0,'Back disappears after returning');
+  });
+}
+for (const label of ['pve-1','local']) {
+  test(`no guest Back button in node/storage details: ${label}`,async t=>{
+    const {page}=await setup(t);
+    const entry=page.locator('[data-ns8-remote-resources]').getByText(label,{exact:true});
+    await entry.click();
+    await entry.waitFor({state:'hidden'});
+    assert.equal(await page.getByText('Back to Resources',{exact:true}).count(),0);
+  });
 }
 
 test('does not claim reachability before the first remote API result',async t=>{
@@ -68,7 +113,7 @@ test('reachability uses remote API result, not subscription; recovers after fail
 
 test('resource deep link survives a full page reload and returns to Resources',async t=>{
   const {page}=await setup(t);
-  await page.locator('[data-ns8-remote-resources]').getByText('pve-1',{exact:true}).click();
+  await page.locator('[data-ns8-remote-resources]').getByText(/fixture-vm/).click();
   await page.getByText('Back to Resources',{exact:true}).waitFor();
   const resourceUrl = page.url();
   await page.reload();
@@ -95,7 +140,7 @@ test('Resources is first/default right-side tab; Tasks and Notes still work',asy
   await page.getByText('Fixture notes',{exact:false}).waitFor();
   await resourcesTab.click();
   await tree.getByText('pve-1',{exact:true}).waitFor();
-  await tree.getByText('pve-1',{exact:true}).click();
+  await tree.getByText(/fixture-vm/).click();
   await page.getByText('Back to Resources',{exact:true}).waitFor();
   await page.getByText('Back to Resources',{exact:true}).click();
   await tree.getByText('Datacenter',{exact:true}).waitFor();
