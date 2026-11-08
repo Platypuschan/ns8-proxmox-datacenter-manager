@@ -16,7 +16,9 @@ jobs:
   renovate:
     name: Renovate configuration
     runs-on: ubuntu-24.04
-    container: ghcr.io/renovatebot/renovate:44.222.4
+    container:
+      image: ghcr.io/renovatebot/renovate:44.222.4
+      options: --user=0
     steps:
       - uses: actions/checkout@v7
         with:

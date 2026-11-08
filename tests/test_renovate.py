@@ -23,6 +23,19 @@ class RenovatePolicyTests(unittest.TestCase):
         majors = [r for r in config["packageRules"] if "major" in r.get("matchUpdateTypes", [])]
         self.assertTrue(any(r.get("dependencyDashboardApproval") for r in majors))
 
+    def test_validator_container_runs_as_root_for_runner_file_commands(self):
+        workflow = (ROOT / ".github/workflows/validate.yml").read_text()
+        job = re.search(r"(?ms)^  renovate:\n(.*?)(?=^  \w|\Z)", workflow)
+        if job is None:
+            self.fail("Renovate validation job must exist")
+        self.assertRegex(
+            job.group(1),
+            r"(?m)^    container:\n"
+            r"      image: ghcr\.io/renovatebot/renovate:[^\s]+\n"
+            r"      options: --user=0$",
+            "Run the validator container as uid 0 so checkout can write runner file commands",
+        )
+
     def test_custom_managers_cover_all_shell_and_browser_pins(self):
         config = self.config()
         extracted = []
