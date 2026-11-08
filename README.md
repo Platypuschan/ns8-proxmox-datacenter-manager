@@ -103,8 +103,9 @@ The PVE remote summary shows **Reachability** instead of Subscription Level:
 This indicates authenticated API reachability, not ICMP/ping availability or a
 subscription entitlement. The existing five-second refresh detects failures and
 recovery. **Resources** is the first/default tab in the right-hand panel, before
-**Tasks** and **Notes**. Resource details remain available; **Back to Resources**
-returns to the tree.
+**Tasks** and **Notes**. In VM/container details, **Back to Resources** appears
+on the right below this tab bar and above the guest title, and returns to the
+tree. It is absent in the remote overview, node/storage details and Tasks/Notes.
 
 These changes are native Yew UI changes, not DOM-node relocation. The application
 image builds UI 1.1.4 from pinned upstream commit
