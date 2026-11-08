@@ -247,7 +247,7 @@ index f069ec75..1deca908 100644
          })
      }
 diff --git a/ui/src/pve/remote/mod.rs b/ui/src/pve/remote/mod.rs
-index 4da0a9bc..956bccb5 100644
+index 4da0a9bc..d996098c 100644
 --- a/ui/src/pve/remote/mod.rs
 +++ b/ui/src/pve/remote/mod.rs
 @@ -6,19 +6,23 @@ use yew::virtual_dom::{VComp, VNode};
@@ -278,7 +278,7 @@ index 4da0a9bc..956bccb5 100644
      }
  }
  
-@@ -50,9 +54,32 @@ impl yew::Component for PveRemotePanelComp {
+@@ -50,9 +54,31 @@ impl yew::Component for PveRemotePanelComp {
  
          TabPanel::new()
              .router(true)
@@ -291,8 +291,7 @@ index 4da0a9bc..956bccb5 100644
 +                    .key("resources_view")
 +                    .label(tr!("Resources"))
 +                    .icon_class("fa fa-server"),
-+                Container::new()
-+                    .padding(4)
++                Column::new()
 +                    .class(pwt::css::FlexFit)
 +                    .attribute("data-ns8-remote-resources", "")
 +                    .with_child(
