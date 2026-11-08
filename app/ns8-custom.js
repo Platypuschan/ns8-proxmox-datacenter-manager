@@ -56,6 +56,10 @@
   function applyMenu() {
     var nav = document.querySelector('[role="navigation"].pwt-nav-menu');
     if (!nav) return;
+    // PWT 0.8.22 wraps top-level entries in one flex column.
+    if (nav.children.length === 1 && nav.firstElementChild.matches(".pwt-d-flex.pwt-flex-direction-column")) {
+      nav = nav.firstElementChild;
+    }
     var entries = {}; // every entry by key, for the top bar buttons
     var top = {};     // top-level entries by key
     Array.prototype.forEach.call(nav.children, function (el) {

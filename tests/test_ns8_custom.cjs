@@ -51,6 +51,22 @@ test('hides subscription notice in every view, including translated rerenders', 
   assert.equal(await page.locator('#other-error').isVisible(), true);
 });
 
+test('menu customization supports the native UI navigation wrapper', async t => {
+  const browser = await chromium.launch({headless:true});
+  t.after(()=>browser.close());
+  const page = await browser.newPage();
+  await page.setContent(`<nav role="navigation" class="pwt-nav-menu"><div class="pwt-d-flex pwt-flex-direction-column">
+    <a class="pwt-nav-link"><i class="pwt-nav-menu-icon fa-tachometer"></i>Dashboard</a>
+    <a class="pwt-nav-link" id="subscription"><i class="pwt-nav-menu-icon fa-support"></i>Subscription</a>
+    <a class="pwt-nav-link" id="shell"><i class="pwt-nav-menu-icon fa-terminal"></i>Shell</a>
+  </div></nav>`);
+  await page.evaluate(()=>{window.NS8_PDM={layout:true,hide:['subscription']};});
+  await page.addScriptTag({path:path.resolve(__dirname,'../app/ns8-custom.js')});
+  await settled(page);
+  assert.equal(await page.locator('#subscription').isVisible(),false);
+  assert.equal(await page.locator('#shell').isVisible(),false);
+});
+
 test('keeps subscription notices when automatic dismissal is disabled', async t => {
   const page = await setup(t, false);
   await settled(page);
