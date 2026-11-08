@@ -106,6 +106,9 @@ recovery. **Resources** is the first/default tab in the right-hand panel, before
 **Tasks** and **Notes**. In VM/container details, **Back to Resources** appears
 on the right below this tab bar and above the guest title, and returns to the
 tree. It is absent in the remote overview, node/storage details and Tasks/Notes.
+The Resources tree and detail content use the full width of the right-hand
+block. Embedded noVNC/xterm.js consoles (including the LXC shell) fill the
+remaining panel height and resize with the browser window.
 
 These changes are native Yew UI changes, not DOM-node relocation. The application
 image builds UI 1.1.4 from pinned upstream commit
@@ -119,7 +122,9 @@ PDM web endpoint (AGPL corresponding-source download).
 Browser regression command (Playwright installed on the runner):
 `python3 tests/run_remote_ui_test.py <application-image>`.
 It starts a disposable local PDM container with a random temporary credential,
-loads the actual packaged WASM, and replaces only remote API data with fixtures.
+loads the actual packaged WASM, and replaces remote API data and embedded console
+content with fixtures. Console tests verify real iframe geometry, resizing and
+reopening after tab changes, not live remote WebSocket/VNC sessions.
 
 ### Container specifics
 
