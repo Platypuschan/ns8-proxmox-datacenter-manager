@@ -92,6 +92,34 @@ adds to the PDM web interface. It only changes attributes and styles of existing
 elements; a PDM update that renames its CSS classes can make it stop working,
 and then PDM simply shows its normal interface.
 
+### Remote detail view
+
+The PVE remote summary shows **Reachability** instead of Subscription Level:
+- green circle with a check: the latest remote resources API request succeeded;
+- red circle with an X: the request failed (the original error and certificate
+  check remain available);
+- a neutral question mark until the first result is available.
+
+This indicates authenticated API reachability, not ICMP/ping availability or a
+subscription entitlement. The existing five-second refresh detects failures and
+recovery. **Resources** is the first/default tab in the right-hand panel, before
+**Tasks** and **Notes**. Resource details remain available; **Back to Resources**
+returns to the tree.
+
+These changes are native Yew UI changes, not DOM-node relocation. The application
+image builds UI 1.1.4 from pinned upstream commit
+`aae6607b38f1b3701d88ceef25f14ce72bb258ca` with `app/pdm-ui.patch`. The build fails
+if the patch no longer applies. The packaged UI version is pinned alongside the
+source; review both when upgrading it. Build dependencies from the Proxmox devel
+repository are confined to the builder, not the runtime. The patched source,
+build package list and patch are included at `/js/ns8-pdm-ui-source.tar.gz` on the
+PDM web endpoint (AGPL corresponding-source download).
+
+Browser regression command (Playwright installed on the runner):
+`python3 tests/run_remote_ui_test.py <application-image>`.
+It starts a disposable local PDM container with a random temporary credential,
+loads the actual packaged WASM, and replaces only remote API data with fixtures.
+
 ### Container specifics
 
 - `/etc/resolv.conf` is a bind mount in the container; PDM's atomic rename onto

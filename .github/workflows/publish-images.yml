@@ -40,6 +40,18 @@ jobs:
           printf '%s' "$REGISTRY_TOKEN" | buildah login --username "$GITHUB_ACTOR" --password-stdin ghcr.io
           buildah push "${image}" "docker://${image}"
           echo "Published ${image}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Set up Node.js for native PDM UI tests
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24.20.0"
+      - name: Install browser test dependencies
+        run: |
+          npm install --prefix "$RUNNER_TEMP/pdm-browser" --no-save --package-lock=false playwright@1.65.0
+          "$RUNNER_TEMP/pdm-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Test packaged PDM remote UI
+        env:
+          REPOBASE: ghcr.io/${{ github.repository_owner }}
+        run: NODE_PATH="$RUNNER_TEMP/pdm-browser/node_modules" python3 tests/run_remote_ui_test.py "$(.github/scripts/app-image)"
 
   # A pushed tag whose image already exists, such as the release tag that
   # publish-catalog-version creates, must not rebuild and replace the tested

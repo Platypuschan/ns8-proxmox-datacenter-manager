@@ -1,0 +1,448 @@
+diff --git a/ui/src/pve/mod.rs b/ui/src/pve/mod.rs
+index f069ec75..81bd1a0c 100644
+--- a/ui/src/pve/mod.rs
++++ b/ui/src/pve/mod.rs
+@@ -139,6 +139,7 @@ impl GuestInfo {
+ pub enum Msg {
+     SelectedView(tree::PveTreeNode),
+     LoadFinished(
++        String,
+         Result<Vec<PveResource>, Error>,
+         Result<RemoteUpdateSummary, Error>,
+     ),
+@@ -155,6 +156,7 @@ pub struct PveRemoteComp {
+     view: tree::PveTreeNode,
+     resources: Rc<Vec<PveResource>>,
+     last_error: Option<String>,
++    resource_loaded: bool,
+     updates: LoadResult<RemoteUpdateSummary, Error>,
+ }
+ 
+@@ -172,6 +174,7 @@ impl LoadableComponent for PveRemoteComp {
+             view: PveTreeNode::Root,
+             resources: Rc::new(Vec::new()),
+             last_error: None,
++            resource_loaded: false,
+             updates: LoadResult::new(),
+         }
+     }
+@@ -181,7 +184,11 @@ impl LoadableComponent for PveRemoteComp {
+             Msg::SelectedView(node) => {
+                 self.view = node;
+             }
+-            Msg::LoadFinished(resources, updates) => {
++            Msg::LoadFinished(remote, resources, updates) => {
++                if remote != _ctx.props().remote {
++                    return false;
++                }
++                self.resource_loaded = true;
+                 match resources {
+                     Ok(res) => {
+                         self.last_error = None;
+@@ -199,13 +206,37 @@ impl LoadableComponent for PveRemoteComp {
+         true
+     }
+ 
++    fn changed(&mut self, ctx: &LoadableComponentContext<Self>, old: &Self::Properties) -> bool {
++        if ctx.props().remote != old.remote {
++            self.resource_loaded = false;
++            self.last_error = None;
++            self.resources = Rc::new(Vec::new());
++            self.updates = LoadResult::new();
++            self.view = PveTreeNode::Root;
++            ctx.link().send_reload();
++        }
++        true
++    }
++
+     fn main_view(&self, ctx: &LoadableComponentContext<Self>) -> Html {
+         let props = ctx.props();
+ 
+         let remote = &props.remote;
+ 
++        let link = ctx.link();
++        let resources: Html = tree::PveTree::new(
++            remote.to_string(),
++            self.resources.clone(),
++            self.loading(),
++            link.callback(Msg::SelectedView),
++            {
++                let link = link.clone();
++                move |_| link.send_reload()
++            },
++        )
++        .into();
+         let content: Html = match &self.view {
+-            PveTreeNode::Root => remote::PveRemotePanel::new(remote.clone()).into(),
++            PveTreeNode::Root => Html::default(),
+             PveTreeNode::Node(node) => {
+                 let pve_manager = match &self.updates.data {
+                     Some(updates) => extract_package_version(updates, &node.node, "pve-manager"),
+@@ -239,6 +270,9 @@ impl LoadableComponent for PveRemoteComp {
+             }
+         };
+         let content = NavigationContainer::new().with_child(content);
++        let content = remote::PveRemotePanel::new(
++            remote.clone(), resources, content.into(), self.view == PveTreeNode::Root,
++        );
+ 
+         let link = ctx.link();
+ 
+@@ -249,73 +283,81 @@ impl LoadableComponent for PveRemoteComp {
+             .with_child(tr! {"Remote '{0}'", ctx.props().remote})
+             .into();
+ 
+-        let content =
+-            Container::new()
+-                .class("pwt-content-spacer")
+-                .class(FlexFit)
+-                .class("pwt-flex-direction-row")
+-                .with_child(
+-                    Panel::new()
+-                        .min_width(500)
+-                        .style("flex", "1 1 0")
+-                        .class(FlexFit)
+-                        .border(true)
+-                        .title(title)
+-                        .with_tool(
+-                            Button::new(tr!("Open Web UI"))
+-                                .icon_class("fa fa-external-link")
+-                                .on_activate({
+-                                    let link = ctx.link().clone();
+-                                    let remote = ctx.props().remote.clone();
+-                                    move |_| {
+-                                        if let Some(url) = get_deep_url(&link, &remote, None, "") {
+-                                            let _ = window().open_with_url(&url.href());
+-                                        }
++        let content = Container::new()
++            .class("pwt-content-spacer")
++            .class(FlexFit)
++            .class("pwt-flex-direction-row")
++            .with_child(
++                Panel::new()
++                    .min_width(500)
++                    .style("flex", "1 1 0")
++                    .class(FlexFit)
++                    .border(true)
++                    .title(title)
++                    .with_tool(
++                        Button::new(tr!("Open Web UI"))
++                            .icon_class("fa fa-external-link")
++                            .on_activate({
++                                let link = ctx.link().clone();
++                                let remote = ctx.props().remote.clone();
++                                move |_| {
++                                    if let Some(url) = get_deep_url(&link, &remote, None, "") {
++                                        let _ = window().open_with_url(&url.href());
+                                     }
+-                                }),
+-                        )
+-                        .with_child(
+-                            Column::new()
+-                                .padding(4)
+-                                .class(FlexFit)
+-                                .gap(4)
+-                                .with_child(remote_overview::RemotePanel::new(
+-                                    remote.clone(),
+-                                    self.resources.clone(),
+-                                    self.last_error.clone(),
+-                                ))
+-                                // When the remote is unreachable this is often a rotated node
+-                                // certificate; offer the re-check right where the error shows.
+-                                .with_optional_child(self.last_error.is_some().then(|| {
+-                                    Row::new().with_child(
+-                                        Button::new(tr!("Check Certificate"))
+-                                            .icon_class("fa fa-certificate")
+-                                            .onclick(link.change_view_callback(|_| {
++                                }
++                            }),
++                    )
++                    .with_child(
++                        Column::new()
++                            .padding(4)
++                            .class(FlexFit)
++                            .gap(4)
++                            .with_child(remote_overview::RemotePanel::new(
++                                remote.clone(),
++                                self.resources.clone(),
++                                self.last_error.clone(),
++                                self.resource_loaded,
++                            ))
++                            // When the remote is unreachable this is often a rotated node
++                            // certificate; offer the re-check right where the error shows.
++                            .with_optional_child(self.last_error.is_some().then(|| {
++                                Row::new().with_child(
++                                    Button::new(tr!("Check Certificate"))
++                                        .icon_class("fa fa-certificate")
++                                        .onclick(
++                                            link.change_view_callback(|_| {
+                                                 Some(ViewState::CertCheck)
+-                                            })),
+-                                    )
+-                                }))
+-                                .with_child(html! {<hr/>})
+-                                .with_child(tree::PveTree::new(
+-                                    remote.to_string(),
+-                                    self.resources.clone(),
+-                                    self.loading(),
+-                                    link.callback(Msg::SelectedView),
+-                                    {
++                                            }),
++                                        ),
++                                )
++                            }))
++                            .with_optional_child((self.view != PveTreeNode::Root).then(|| {
++                                use yew_router::prelude::RouterScopeExt;
++                                Button::new(tr!("Back to Resources"))
++                                    .icon_class("fa fa-arrow-left")
++                                    .on_activate({
+                                         let link = link.clone();
+-                                        move |_| link.send_reload()
+-                                    },
+-                                )),
+-                        ),
+-                )
+-                .with_child(
+-                    Panel::new()
+-                        .class(FlexFit)
+-                        .border(true)
+-                        .min_width(500)
+-                        .with_child(content)
+-                        .style("flex", "1 1 0"),
+-                );
++                                        let remote = remote.clone();
++                                        move |_| {
++                                            if let Some(nav) = link.navigator() {
++                                                nav.push(&yew_router::AnyRoute::new(format!(
++                                                    "/remote-{remote}/_/datacenter"
++                                                )));
++                                            }
++                                            link.send_message(Msg::SelectedView(PveTreeNode::Root));
++                                        }
++                                    })
++                            })),
++                    ),
++            )
++            .with_child(
++                Panel::new()
++                    .class(FlexFit)
++                    .border(true)
++                    .min_width(500)
++                    .with_child(content)
++                    .style("flex", "1 1 0"),
++            );
+         NavigationContainer::new()
+             .with_child(Panel::new().class(FlexFit).with_child(content))
+             .into()
+@@ -346,7 +388,7 @@ impl LoadableComponent for PveRemoteComp {
+             let client = crate::pdm_client();
+             let resources = client.pve_cluster_resources(&remote, None).await;
+             let updates = client.pve_cluster_updates(&remote).await;
+-            link.send_message(Msg::LoadFinished(resources, updates));
++            link.send_message(Msg::LoadFinished(remote, resources, updates));
+             Ok(())
+         })
+     }
+diff --git a/ui/src/pve/remote/mod.rs b/ui/src/pve/remote/mod.rs
+index 4da0a9bc..25718a9f 100644
+--- a/ui/src/pve/remote/mod.rs
++++ b/ui/src/pve/remote/mod.rs
+@@ -6,19 +6,22 @@ use yew::virtual_dom::{VComp, VNode};
+ use pwt::css::{AlignItems, ColorScheme};
+ use pwt::prelude::*;
+ use pwt::props::{ContainerBuilder, WidgetBuilder};
+-use pwt::widget::{Fa, Row, TabBarItem, TabPanel};
++use pwt::widget::{Column, Container, Fa, Row, TabBarItem, TabPanel};
+ 
+ use crate::remotes::RemoteTaskList;
+ 
+-#[derive(Clone, Debug, Eq, PartialEq, Properties)]
++#[derive(Clone, Debug, PartialEq, Properties)]
+ pub struct PveRemotePanel {
+     /// The remote to show
+     pub remote: String,
++    pub resources: Html,
++    pub content: Html,
++    pub show_resources: bool,
+ }
+ 
+ impl PveRemotePanel {
+-    pub fn new(remote: String) -> Self {
+-        yew::props!(Self { remote })
++    pub fn new(remote: String, resources: Html, content: Html, show_resources: bool) -> Self {
++        yew::props!(Self { remote, resources, content, show_resources })
+     }
+ }
+ 
+@@ -50,9 +53,29 @@ impl yew::Component for PveRemotePanelComp {
+ 
+         TabPanel::new()
+             .router(true)
++            .attribute("data-ns8-remote-tabs", "")
+             .class(pwt::css::FlexFit)
+             .title(title)
+             .class(ColorScheme::Neutral)
++            .with_item(
++                TabBarItem::new()
++                    .key("resources_view")
++                    .label(tr!("Resources"))
++                    .icon_class("fa fa-server"),
++                Container::new()
++                    .padding(4)
++                    .class(pwt::css::FlexFit)
++                    .attribute("data-ns8-remote-resources", "")
++                    .with_child(
++                        Column::new().class(pwt::css::FlexFit)
++                            // Keep the tree mounted while viewing a resource. Its
++                            // selection/router subscriptions must remain alive.
++                            .with_child(Container::new().class(pwt::css::FlexFit)
++                                .style("display", if props.show_resources { "flex" } else { "none" })
++                                .with_child(props.resources.clone()))
++                            .with_optional_child((!props.show_resources).then(|| props.content.clone()))
++                    ),
++            )
+             .with_item_builder(
+                 TabBarItem::new()
+                     .key("tasks_view")
+diff --git a/ui/src/pve/remote_overview.rs b/ui/src/pve/remote_overview.rs
+index 3540ce66..bee0d3f2 100644
+--- a/ui/src/pve/remote_overview.rs
++++ b/ui/src/pve/remote_overview.rs
+@@ -1,7 +1,7 @@
+ use std::collections::HashSet;
+ use std::rc::Rc;
+ 
+-use proxmox_yew_comp::{Status, StatusRow};
++use proxmox_yew_comp::StatusRow;
+ use yew::Properties;
+ 
+ use proxmox_human_byte::HumanByte;
+@@ -23,14 +23,21 @@ pub struct RemotePanel {
+     remote: String,
+     resources: Rc<Vec<PveResource>>,
+     error: Option<String>,
++    loaded: bool,
+ }
+ 
+ impl RemotePanel {
+-    pub fn new(remote: String, resources: Rc<Vec<PveResource>>, error: Option<String>) -> Self {
++    pub fn new(
++        remote: String,
++        resources: Rc<Vec<PveResource>>,
++        error: Option<String>,
++        loaded: bool,
++    ) -> Self {
+         yew::props!(Self {
+             remote,
+             resources,
+-            error
++            error,
++            loaded
+         })
+     }
+ }
+@@ -54,7 +61,6 @@ struct RemoteStatus {
+     max_storage: u64,
+     nodes: i32,
+     cpu_usage: f64,
+-    level: &'static str,
+ }
+ 
+ impl RemotePanelComp {
+@@ -72,7 +78,7 @@ impl RemotePanelComp {
+         let mut max_storage = 1;
+         let mut nodes = 0;
+         let mut cpu_usage = 0.0;
+-        let mut level = None;
++
+         let mut seen_shared_storages: HashSet<String> = HashSet::new();
+ 
+         for res in ctx.props().resources.iter() {
+@@ -110,27 +116,10 @@ impl RemotePanelComp {
+                     memory += node.mem;
+                     max_memory += node.maxmem;
+                     cpu_usage += node.cpu;
+-
+-                    match (node.level.as_str(), level) {
+-                        (x, Some(y)) if x == y => {}
+-                        (x, Some(y)) if x != y => {
+-                            level = Some(""); // TODO: add separate state for all subscribed but mixed.
+-                        }
+-                        ("c" | "b" | "s" | "p", None) => level = Some(node.level.as_str()),
+-                        _ => level = Some(""),
+-                    }
+                 }
+                 PveResource::Network(_) => {}
+             }
+         }
+-        // render, but this would be all better with some actual types...
+-        let level = match level {
+-            Some("c") => "Community",
+-            Some("b") => "Basic",
+-            Some("s") => "Standard",
+-            Some("p") => "Premium",
+-            _ => "",
+-        };
+ 
+         let cpu_usage = cpu_usage / nodes as f64;
+ 
+@@ -148,7 +137,6 @@ impl RemotePanelComp {
+             max_storage,
+             nodes,
+             cpu_usage,
+-            level,
+         };
+     }
+ }
+@@ -173,19 +161,23 @@ impl yew::Component for RemotePanelComp {
+ 
+     fn view(&self, ctx: &yew::Context<Self>) -> yew::Html {
+         let status = &self.status;
++        let (reachability, icon, label) = match (ctx.props().loaded, &ctx.props().error) {
++            (false, _) => ("unknown", "fa-question-circle", tr!("Checking")),
++            (true, Some(_)) => (
++                "offline",
++                "fa-times-circle pwt-color-error",
++                tr!("Not reachable"),
++            ),
++            (true, None) => (
++                "online",
++                "fa-check-circle pwt-color-success",
++                tr!("Reachable"),
++            ),
++        };
+         let content = match &ctx.props().error {
+             Some(err) => Column::new().padding(4).with_child(error_message(err)),
+             None => Column::new()
+                 .gap(2)
+-                .with_child(status_row_right_icon(
+-                    tr!("Subscription Level"),
+-                    if status.level.is_empty() {
+-                        Status::Error
+-                    } else {
+-                        Status::Success
+-                    },
+-                    status.level.to_string(),
+-                ))
+                 .with_child(status_row_right_icon(
+                     tr! {"Nodes"},
+                     "fa-building",
+@@ -294,7 +286,17 @@ impl yew::Component for RemotePanelComp {
+ 
+         Panel::new()
+             .with_std_props(&ctx.props().std_props)
+-            .with_child(content)
++            .with_child(
++                Column::new()
++                    .gap(2)
++                    .with_child(
++                        status_row_right_icon(tr!("Reachability"), icon, String::new())
++                            .attribute("data-ns8-reachability", reachability)
++                            .attribute("title", label.clone())
++                            .attribute("aria-label", label),
++                    )
++                    .with_child(content),
++            )
+             .into()
+     }
+ }
