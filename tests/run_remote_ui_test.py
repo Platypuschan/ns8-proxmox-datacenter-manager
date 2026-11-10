@@ -30,6 +30,18 @@ def readiness_diagnostics(name, sensitive_values):
         print(sanitize_diagnostic(result.stdout + result.stderr, sensitive_values), flush=True)
 
 
+def container_command(name, image):
+    # PDM combines nodename and resolver search domain in the TLS certificate CN.
+    # The production service already owns its hostname; isolate DNS search too
+    # so Azure/GitHub runner suffixes cannot exceed ASN.1's 64-character CN limit.
+    return [
+        "podman", "run", "-d", "--name", name,
+        "--hostname", "pdm", "--dns-search", "pdm-test.invalid",
+        "-p", "127.0.0.1::8443", "--tmpfs", "/run/proxmox-datacenter-manager/shmem",
+        "-e", "PASSWORD_HASH", image,
+    ]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image")
@@ -45,11 +57,8 @@ def main():
     env = dict(os.environ, PASSWORD_HASH=hashed, PDM_TEST_PASSWORD=password)
     repo = Path(__file__).resolve().parent.parent
     try:
-        subprocess.run([
-            "podman", "run", "-d", "--name", name,
-            "-p", "127.0.0.1::8443", "--tmpfs", "/run/proxmox-datacenter-manager/shmem",
-            "-e", "PASSWORD_HASH", args.image,
-        ], env=env, check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(container_command(name, args.image),
+                       env=env, check=True, stdout=subprocess.DEVNULL)
         binding = json.loads(subprocess.check_output([
             "podman", "inspect", "--format", "{{json .NetworkSettings.Ports}}", name,
         ], text=True))["8443/tcp"][0]
