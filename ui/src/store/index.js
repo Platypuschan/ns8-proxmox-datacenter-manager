@@ -2,12 +2,10 @@
 // Copyright (C) 2023 Nethesis S.r.l.
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-import Vue from "vue";
-import Vuex from "vuex";
+import { createStore } from "vuex";
+import { markRaw } from "vue";
 
-Vue.use(Vuex);
-
-export default new Vuex.Store({
+export default createStore({
   state: {
     appName: "",
     instanceName: "",
@@ -22,7 +20,8 @@ export default new Vuex.Store({
       state.instanceLabel = instanceLabel;
     },
     setCore(state, core) {
-      state.core = core;
+      // `core` is the Vue 2 root of the NS8 core: it must never be proxied
+      state.core = core ? markRaw(core) : core;
     },
     setAppName(state, appName) {
       state.appName = appName;

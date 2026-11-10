@@ -1,0 +1,5 @@
+// Component tokens only: do not emit Carbon 11 CSS into the Carbon 10 host.
+@forward "./carbon-utils";
+$support-04: #0090de; // NS8 info/tooltip brand color
+$ns-warning-color: #ff832b;
+$ns-warning-status-color: #eb991e;
