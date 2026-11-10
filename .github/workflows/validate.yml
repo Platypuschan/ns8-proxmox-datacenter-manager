@@ -24,6 +24,7 @@ jobs:
         with:
           persist-credentials: false
       - run: renovate-config-validator --strict renovate.json
+      - run: node .github/scripts/test-renovate.mjs
 
   static:
     name: Static checks
