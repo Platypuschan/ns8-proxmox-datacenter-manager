@@ -86,10 +86,22 @@
         },
         $router: {
           push(p) {
-            window.__fixture.pushed.push(typeof p === "string" ? p : p.path);
+            const target = typeof p === "string" ? p : p.path;
+            window.__fixture.pushed.push(target);
+            if (target.startsWith("/apps/")) {
+              window.core.$route.path = target.split("?")[0];
+              window.core.$route.fullPath = target;
+              window.location.hash = target;
+            }
           },
           replace(p) {
-            window.__fixture.pushed.push(typeof p === "string" ? p : p.path);
+            const target = typeof p === "string" ? p : p.path;
+            window.__fixture.pushed.push(target);
+            if (target.startsWith("/apps/")) {
+              window.core.$route.path = target.split("?")[0];
+              window.core.$route.fullPath = target;
+              window.location.hash = target;
+            }
           },
         },
       };
