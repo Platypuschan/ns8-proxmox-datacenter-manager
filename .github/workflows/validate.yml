@@ -121,7 +121,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: "24.20.0"
+          node-version: "24.22.2"
       - name: Install isolated browser test dependencies
         run: |
           npm install --prefix "$RUNNER_TEMP/pdm-browser" --no-save --package-lock=false playwright@1.65.0
@@ -143,7 +143,7 @@ jobs:
         uses: actions/setup-node@v7
         with:
           # Keep in sync with NODE_IMAGE in build-images.sh
-          node-version: "24.20.0"
+          node-version: "24.22.2"
           cache: yarn
           cache-dependency-path: ui/yarn.lock
 

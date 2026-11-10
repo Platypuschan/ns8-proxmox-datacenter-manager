@@ -24,7 +24,7 @@ MODULE_VERSION="$(tr -d '\r\n' < CATALOG_VERSION)"
 # before this script runs.
 PDM_IMAGE="$(.github/scripts/app-image)"
 # Keep in sync with the Node.js version used by .github/workflows/validate.yml
-NODE_IMAGE="docker.io/library/node:24.20.0"
+NODE_IMAGE="docker.io/library/node:24.22.2"
 nodebuilder="nodebuilder-pdm-${NODE_IMAGE##*:}"
 
 if [[ -z "${CI:-}" ]] && ! buildah inspect --type image "${PDM_IMAGE}" >/dev/null 2>&1; then
