@@ -9,9 +9,11 @@ for the embedded NS8 module settings/status/about UI.
   Microsoft's published JavaScript image has no Node 24 tag: the supported
   `1-22-bookworm` base plus the official Node feature selects Node LTS 24.
   The real devcontainer CLI build was exercised, including the non-root user.
-  The final Vue 3 development environment also uses the current upstream Node
-  feature generation 2, verified with a real image build and plain project-pinned
-  Yarn install/lint/build, so the newly introduced feature is not left a major behind.
+  The final Vue 3 development environment uses the now-published generation 5
+  `5-22-bookworm` base and Node feature generation 2 (2.1.2), verified with the
+  real devcontainer CLI build and non-root Node 24.22.2/Yarn 4.18.1 immutable
+  install, lint, installed-stack tests and production build. Neither input is
+  left a major behind after refreshing the dashboard.
 - Scheduled maintenance PR #20 coordinates Node 24.22.2, Yarn 4.18.1,
   Renovate 44.225.0 and all existing-range lockfile updates, with one 0.1.6 bump.
 - The module UI uses Vue 3, Router 5, Vuex 4, i18n 11, vue-debounce 6,
