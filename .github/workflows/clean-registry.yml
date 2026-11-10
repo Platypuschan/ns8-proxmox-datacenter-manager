@@ -27,7 +27,7 @@ concurrency:
 jobs:
   delete_images:
     name: "Delete stale ghcr.io images"
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Delete stale branch and untagged images
         shell: bash

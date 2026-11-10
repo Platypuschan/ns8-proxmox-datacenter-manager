@@ -15,7 +15,7 @@ concurrency:
 jobs:
   renovate:
     name: Renovate configuration
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     container:
       image: ghcr.io/renovatebot/renovate:44.222.4
       options: --user=0
