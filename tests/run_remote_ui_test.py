@@ -13,6 +13,23 @@ import urllib.error
 import urllib.request
 
 
+def sanitize_diagnostic(text, sensitive_values):
+    for value in sensitive_values:
+        if value:
+            text = text.replace(value, "[REDACTED]")
+    return text[-12000:]
+
+
+def readiness_diagnostics(name, sensitive_values):
+    # Never inspect Config/Env: it contains the disposable password hash.
+    for command in (
+        ["podman", "inspect", "--format", "{{json .State}}", name],
+        ["podman", "logs", "--tail", "100", name],
+    ):
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        print(sanitize_diagnostic(result.stdout + result.stderr, sensitive_values), flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image")
@@ -47,6 +64,7 @@ def main():
             except (urllib.error.URLError, OSError):
                 time.sleep(1)
         else:
+            readiness_diagnostics(name, [password, hashed])
             raise RuntimeError("Disposable PDM service did not become ready")
         env["PDM_TEST_URL"] = base
         artifacts = args.artifacts_dir.resolve() if args.artifacts_dir else None
