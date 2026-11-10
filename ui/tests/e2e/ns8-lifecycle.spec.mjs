@@ -198,7 +198,9 @@ for (const outcome of ["completed", "aborted", "validation-failed"]) {
     ns8,
   }) => {
     await trackHostBus(page);
-    const frame = await ns8.open({ hash: "#/apps/proxmox-datacenter-manager1?page=settings" });
+    const frame = await ns8.open({
+      hash: "#/apps/proxmox-datacenter-manager1?page=settings",
+    });
     const config = await ns8.task("get-configuration");
     await ns8.complete("get-configuration", config.eventId, configuration);
     expect(await listeners(page, config.eventId)).toEqual([]);
@@ -231,7 +233,9 @@ test("Settings navigation discards delayed save completions", async ({
   ns8,
 }) => {
   await trackHostBus(page);
-  const frame = await ns8.open({ hash: "#/apps/proxmox-datacenter-manager1?page=settings" });
+  const frame = await ns8.open({
+    hash: "#/apps/proxmox-datacenter-manager1?page=settings",
+  });
   const config = await ns8.task("get-configuration");
   await ns8.complete("get-configuration", config.eventId, configuration);
   await frame.getByRole("button", { name: "Save", exact: true }).click();

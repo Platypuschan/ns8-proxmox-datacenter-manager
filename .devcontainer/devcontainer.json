@@ -9,8 +9,7 @@
       "extensions": [
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
-        "octref.vetur",
-        "shenjiaolong.vue-helper",
+        "Vue.volar",
         "waderyan.gitblame",
         "streetsidesoftware.code-spell-checker"
       ]

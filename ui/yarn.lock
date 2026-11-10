@@ -882,7 +882,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@playwright/test@npm:^1.65.0":
+"@playwright/test@npm:1.65.0":
   version: 1.65.0
   resolution: "@playwright/test@npm:1.65.0"
   dependencies:
@@ -3180,7 +3180,7 @@ __metadata:
     "@carbon/icons-vue": "npm:^10.37.0"
     "@carbon/vue": "npm:^3.0.32"
     "@eslint/js": "npm:^10.0.1"
-    "@playwright/test": "npm:^1.65.0"
+    "@playwright/test": "npm:1.65.0"
     "@vitejs/plugin-vue": "npm:^6.0.10"
     "@vue/eslint-config-prettier": "npm:^10.2.0"
     await-to-js: "npm:^3.0.0"

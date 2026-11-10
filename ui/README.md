@@ -7,4 +7,8 @@ cd ui
 yarn install --immutable
 yarn lint
 yarn build
+yarn test:stack
+# Supply core.css extracted from the digest-pinned NS8 core image in CI:
+NS8_CORE_CSS=/absolute/path/to/core.css yarn test:e2e
+NS8_CORE_CSS=/absolute/path/to/core.css yarn test:e2e:dev
 ```
