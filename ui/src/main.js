@@ -12,9 +12,6 @@ import { registerCarbonComponents } from "./carbon";
 import * as ns8 from "./ns8";
 
 import axios from "axios";
-import VueAxios from "vue-axios";
-import LottieAnimation from "lottie-web-vue";
-import vueDebounce from "vue-debounce";
 
 axios.defaults.timeout = 10000;
 
@@ -43,9 +40,6 @@ async function loadI18n() {
   for (const [name, component] of Object.entries(ns8)) {
     if (name.startsWith("Ns")) app.component(name, component);
   }
-  app.use(VueAxios, axios);
-  app.component("LottieAnimation", LottieAnimation);
-  app.directive("debounce", vueDebounce({ lock: true }));
   app.use(router);
   app.use(store);
   app.use(i18n);

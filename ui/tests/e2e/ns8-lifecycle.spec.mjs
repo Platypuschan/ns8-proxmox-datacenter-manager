@@ -1,6 +1,50 @@
 // Real built UI, with a persistent Vue 2-compatible host bus and fixture API.
 import { test, expect, configuration } from "./helpers.mjs";
 
+test("direct Axios preserves module/cluster transport, bearer auth and 10s timeout", async ({
+  page,
+  ns8,
+}) => {
+  await page.addInitScript(() => {
+    window.__fixtureHttp = [];
+    const open = XMLHttpRequest.prototype.open;
+    const send = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function (method, url, ...args) {
+      this.__fixtureUrl = String(url);
+      return open.call(this, method, url, ...args);
+    };
+    XMLHttpRequest.prototype.send = function (...args) {
+      if (this.__fixtureUrl.includes("/fixture-api/")) {
+        window.__fixtureHttp.push({
+          url: this.__fixtureUrl,
+          timeout: this.timeout,
+        });
+      }
+      return send.apply(this, args);
+    };
+  });
+  await ns8.open();
+  const moduleTask = await ns8.task("get-status");
+  const clusterTask = await ns8.task("list-backup-repositories");
+  expect(moduleTask.path).toBe("/module/proxmox-datacenter-manager1/tasks");
+  expect(clusterTask.path).toBe("/cluster/tasks");
+  for (const task of [moduleTask, clusterTask]) {
+    expect(task.method).toBe("POST");
+    expect(task.headers.authorization).toBe("Bearer fixture-token");
+    expect(task.headers["content-type"]).toBe("application/json");
+    expect(task.payload.extra.eventId).toBeTruthy();
+  }
+  const requests = await page.locator("#module").evaluate((iframe) => {
+    return iframe.contentWindow.__fixtureHttp;
+  });
+  for (const path of [moduleTask.path, clusterTask.path]) {
+    expect(requests).toContainEqual({
+      url: expect.stringContaining(path),
+      timeout: 10000,
+    });
+  }
+});
+
 async function trackHostBus(page) {
   await page.addInitScript(() => {
     let core;

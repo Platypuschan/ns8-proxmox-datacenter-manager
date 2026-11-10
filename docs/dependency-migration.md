@@ -16,8 +16,8 @@ for the embedded NS8 module settings/status/about UI.
   left a major behind after refreshing the dashboard.
 - Scheduled maintenance PR #20 coordinates Node 24.22.2, Yarn 4.18.1,
   Renovate 44.225.0 and all existing-range lockfile updates, with one 0.1.6 bump.
-- The module UI uses Vue 3, Router 5, Vuex 4, i18n 11, vue-debounce 6,
-  lottie-web-vue 3, Carbon Vue 3, carbon-components 11, Vite 8, Babel 8,
+- The module UI uses Vue 3, Router 5, Vuex 4, i18n 11,
+  Carbon Vue 3, carbon-components 11, Vite 8, Babel 8,
   ESLint 10, eslint-plugin-vue 10, eslint-plugin-prettier 5, Prettier 3 and
   @vue/eslint-config-prettier 10. Installed majors are asserted by stack tests.
 - The Vue-2-only ns8-ui-lib is replaced by the consumed GPL-licensed Vue 3
@@ -52,10 +52,34 @@ before the translation fix. No acceptance assertions or existing suites were
 disabled. Full remote native-PDM browser and Debian/Rocky QEMU install/update
 checks remain separate mandatory gates before merging.
 
-Registered-but-unused Lottie/debounce plugins are not claimed as functional
-user paths. Upstream Lottie eval and vue-axios CommonJS/ESM build warnings
-remain visible. VueUse 4 has missing Vue peer declarations in transitive
-metadata; the root installed runtime is Vue 3 and the consumed UI is tested.
+## Warning cleanup (0.2.1)
+
+Removed the registered-but-unused animation and debounce plugins and the
+VueAxios wrapper. Task services import the same Axios singleton directly;
+`axios.defaults.timeout = 10000`, API paths, JSON payloads, bearer headers,
+error propagation and task-listener cleanup remain unchanged. Browser tests
+assert both module and cluster requests, including the actual XHR timeout.
+The animation runtime is absent from the lockfile and production bundle;
+its eval warning and the wrapper's CommonJS/ESM warning no longer occur.
+
+Immutable installation reproduced YN0086. `yarn explain peer-requirements`
+identified missing Vue peers in VueUse core/shared 4.11.2; forwarding the peer
+also requires correcting Carbon Vue 3.0.32's absent Vue peer. Version-scoped
+`packageExtensions` complete that chain without suppressing peer validation,
+changing runtime versions or installing a second Vue. Immutable installation
+then has no peer warnings.
+
+The recursive audit initially reported the intentional Carbon 11 deprecation
+and moderate GHSA-g3hv-75wg-m249 in minimatch 10.2.6 (lint tooling only).
+ESLint 10.14.0 and @eslint/config-array 0.23.5 were the latest published versions
+and still requested minimatch 10. Two parent-scoped resolutions select patched
+minimatch 11.0.1. Both ESM and CommonJS `Minimatch` consumers remain compatible
+on the pinned Node 24 runtime. Lint file-discovery parity, source/ignore glob
+matching and real no-undef diagnostics are checked alongside the full suites.
+The resolutions can be removed once both parents natively require a patched
+version; no audit ignore or weakened lint rules are used. The final recursive
+audit retains only Carbon's deliberate deprecation (not a zero-warning audit).
+Carbon dependencies and the host bx-- stylesheet contract are unchanged.
 
 Security: no auth protocol, privilege, certificate or password-policy changes.
 The host bridge retains bearer authentication and the existing API boundary;

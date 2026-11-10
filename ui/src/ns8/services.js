@@ -3,6 +3,7 @@
 //
 // Vue 3 port of the NS8 UI library mixins used by this module
 // (derived from @nethserver/ns8-ui-lib, Nethesis S.r.l., GPL-3.0-or-later).
+import axios from "axios";
 import bus from "./events";
 import { icons } from "./icons";
 
@@ -279,7 +280,7 @@ export const TaskService = {
       }
     },
     createClusterTaskForApp(taskData) {
-      return this.axios
+      return axios
         .post(`${window.parent.core.$root.apiUrl}/cluster/tasks`, taskData, {
           headers: { Authorization: `Bearer ${getToken()}` },
         })
@@ -289,7 +290,7 @@ export const TaskService = {
         });
     },
     createModuleTaskForApp(moduleId, taskData) {
-      return this.axios
+      return axios
         .post(
           `${window.parent.core.$root.apiUrl}/module/${moduleId}/tasks`,
           taskData,
