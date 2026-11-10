@@ -13,7 +13,7 @@ built on Carbon Vue 3 (`@carbon/vue` 3):
 - `services.js`: Task/Util/QueryParam/PageTitle/Icon mixins with the same
   method names and NS8 core contract (`window.parent.core`, task events on
   `core.$root`, `Authorization: Bearer` from `localStorage.loginInfo`).
-- `Ns*.vue`: NsButton, NsInlineNotification, NsComboBox, NsCodeSnippet,
+- `Ns*.vue`: NsButton, NsInlineNotification,
   NsEmptyState, NsInfoCard, NsSystemdServiceCard, NsSystemLogsCard,
   NsBackupCard with the same props and Carbon (`bx--`) classes.
 

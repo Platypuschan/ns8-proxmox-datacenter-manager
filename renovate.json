@@ -11,7 +11,7 @@
   "enabledManagers": ["github-actions", "dockerfile", "devcontainer", "npm", "custom.regex"],
   "ignorePaths": ["app/**", "**/node_modules/**"],
   "prBodyNotes": [
-    "No automatic merge or deployment. PDM/backend, patched native PDM UI and Debian runtime refreshes are owned by update-pdm.yml, not Renovate.",
+    "Only first-party Actions maintenance may merge automatically after seven days and all protected-branch checks. No automatic deployment. PDM/backend, patched native PDM UI and Debian runtime refreshes are owned by update-pdm.yml, not Renovate.",
     "Image-affecting updates include a CATALOG_VERSION patch bump. Rebase onto current main before merging; the normal build, browser and NS8 lifecycle checks must pass."
   ],
   "lockFileMaintenance": {
@@ -63,9 +63,21 @@
       "groupName": "NS8 UI non-major dependencies"
     },
     {
-      "description": "Do not propose Vue 3 or other migrations as routine maintenance",
+      "description": "Only first-party Actions maintenance after seven days; no toolchain/runtime/UI/runner automerge",
+      "matchManagers": ["github-actions"],
+      "matchDepTypes": ["action"],
+      "matchPackageNames": ["actions/**"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "Reviewed GitHub Actions",
+      "groupSlug": "reviewed-github-actions",
+      "minimumReleaseAge": "7 days",
+      "automerge": true
+    },
+    {
+      "description": "Do not propose migrations as routine maintenance",
       "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true
+      "dependencyDashboardApproval": true,
+      "automerge": false
     },
     {
       "description": "Dependency changes in build inputs need a fresh NS8 module version",

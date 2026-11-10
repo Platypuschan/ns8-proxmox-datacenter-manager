@@ -145,7 +145,7 @@ export const test = base.extend({
       pushed: () => page.evaluate(() => window.__fixture.pushed),
     };
     await use(ns8);
-    if (problems.length) console.log("UI diagnostics", problems);
+    expect(problems).toEqual([]);
   },
 });
 export { expect };
