@@ -2,7 +2,7 @@
   "name": "ns8-proxmox-datacenter-manager",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
   "features": {
-    "ghcr.io/devcontainers/features/node:1": { "version": "24" }
+    "ghcr.io/devcontainers/features/node:2": { "version": "24" }
   },
   "postCreateCommand": "corepack enable",
   "customizations": {
