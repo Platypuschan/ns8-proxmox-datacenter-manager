@@ -1,0 +1,115 @@
+<!doctype html>
+<!--
+  TEST FIXTURE - NOT A REAL NS8 CLUSTER.
+  Minimal stand-in for the NS8 core page that hosts a module UI in an iframe.
+  It provides window.core (task event bus, i18n stubs, router stub),
+  window.CONFIG and the "#/apps/<instance>" location hash the module expects.
+  All API traffic is intercepted by Playwright (see ../helpers.mjs).
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>NS8 core fixture</title>
+  </head>
+  <body style="margin: 0">
+    <div
+      id="fixture-banner"
+      style="font: 12px sans-serif; background: #fdd13a; padding: 2px"
+    >
+      FIXTURE: simulated NS8 core, not a real cluster
+    </div>
+    <iframe
+      id="module"
+      src="/"
+      style="width: 100%; height: 900px; border: 0"
+    ></iframe>
+    <script>
+      const handlers = {};
+      const bus = {
+        apiUrl: "/fixture-api",
+        $i18n: { locale: (navigator.language || "en").substring(0, 2) },
+        $on(e, f) {
+          (handlers[e] = handlers[e] || []).push(f);
+        },
+        $off(e, f) {
+          handlers[e] = f ? (handlers[e] || []).filter((h) => h !== f) : [];
+        },
+        $once(e, f) {
+          const w = (...a) => {
+            bus.$off(e, w);
+            f(...a);
+          };
+          (handlers[e] = handlers[e] || []).push(w);
+        },
+        $emit(e, ...a) {
+          (handlers[e] || []).slice().forEach((h) => h(...a));
+        },
+      };
+      const coreMessages = {
+        "backup.title": "Backup",
+        "backup.no_backup_configured": "No backup configured",
+        "backup.go_to_backup": "Go to backup",
+        "common.status": "Status",
+        "common.success": "Success",
+        "common.disabled": "Disabled",
+        "common.show_more": "Show more",
+        "error.error": "Error",
+        "backup.repository": "Repository",
+        "backup.backup_has_not_run_yet": "Backup has not run yet",
+        "backup.completed": "Completed",
+        "backup.duration": "Duration",
+        "backup.total_size": "Total size",
+        "backup.total_file_count": "Total file count",
+        "common.version": "Version",
+        "software_center.instance": "Instance",
+        "software_center.categories": "Category | Categories",
+        "software_center.documentation": "Documentation",
+        "software_center.bugs": "Issues",
+        "software_center.source_code": "Source code",
+        "software_center.source_package": "Source package",
+        "software_center.authors": "Author | Authors",
+        "software_center.app_categories.collaboration": "Collaboration",
+        "system_logs.card_title": "Logs",
+        "system_logs.card_description": "Logs of {name}",
+        "system_logs.card_button_label": "Go to System logs",
+      };
+      const fmt = (k, p) =>
+        (coreMessages[k] || k).replace(/\{(\w+)\}/g, (_, n) => (p || {})[n]);
+      window.__fixture = { pushed: [], emitted: [], opened: [] };
+      window.core = {
+        $root: bus,
+        $t: fmt,
+        $tc: (k, n, p) => fmt(k, p).split(" | ")[n === 1 ? 0 : 1] || fmt(k, p),
+        $route: {
+          path: "/apps/proxmox-datacenter-manager1",
+          fullPath: "/apps/proxmox-datacenter-manager1?page=status",
+        },
+        $router: {
+          push(p) {
+            const target = typeof p === "string" ? p : p.path;
+            window.__fixture.pushed.push(target);
+            if (target.startsWith("/apps/")) {
+              window.core.$route.path = target.split("?")[0];
+              window.core.$route.fullPath = target;
+              window.location.hash = target;
+            }
+          },
+          replace(p) {
+            const target = typeof p === "string" ? p : p.path;
+            window.__fixture.pushed.push(target);
+            if (target.startsWith("/apps/")) {
+              window.core.$route.path = target.split("?")[0];
+              window.core.$route.fullPath = target;
+              window.location.hash = target;
+            }
+          },
+        },
+      };
+      window.CONFIG = { PRODUCT_NAME: "NS8 fixture" };
+      window.__fixtureEmit = (event, ...args) => {
+        window.__fixture.emitted.push(event);
+        bus.$emit(event, ...args);
+      };
+    </script>
+  </body>
+</html>

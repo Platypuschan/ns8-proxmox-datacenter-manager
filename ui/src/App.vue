@@ -17,11 +17,7 @@ import appMetadata from "../public/metadata.json";
 import AppSideMenu from "./components/AppSideMenu";
 import AppMobileSideMenu from "./components/AppMobileSideMenu";
 import { mapState, mapActions } from "vuex";
-import {
-  QueryParamService,
-  TaskService,
-  UtilService,
-} from "@nethserver/ns8-ui-lib";
+import { QueryParamService, TaskService, UtilService } from "./ns8";
 import to from "await-to-js";
 
 export default {
@@ -35,7 +31,7 @@ export default {
     const core = window.parent.core;
     this.setCoreInStore(core);
     const instanceName = /#\/apps\/([a-zA-Z0-9_-]+)/.exec(
-      window.parent.location.hash
+      window.parent.location.hash,
     )[1];
     this.setInstanceNameInStore(instanceName);
     this.getInstanceLabel();
@@ -49,7 +45,7 @@ export default {
         const requestedPage = e.detail;
         context.$router.replace(requestedPage);
       },
-      false
+      false,
     );
 
     // configure global shortcuts
@@ -73,17 +69,10 @@ export default {
       const taskAction = "get-name";
       const eventId = this.getUuid();
 
-      // register to task error
-      this.core.$root.$once(
-        `${taskAction}-aborted-${eventId}`,
-        this.getInstanceLabelAborted
-      );
-
-      // register to task completion
-      this.core.$root.$once(
-        `${taskAction}-completed-${eventId}`,
-        this.getInstanceLabelCompleted
-      );
+      this.subscribeTask(taskAction, eventId, {
+        aborted: this.getInstanceLabelAborted,
+        completed: this.getInstanceLabelCompleted,
+      });
 
       const res = await to(
         this.createModuleTaskForApp(this.instanceName, {
@@ -93,7 +82,7 @@ export default {
             isNotificationHidden: true,
             eventId,
           },
-        })
+        }),
       );
       const err = res[0];
 
@@ -101,7 +90,7 @@ export default {
         console.error(`error creating task ${taskAction}`, err);
         this.createErrorNotificationForApp(
           err,
-          this.$t("task.cannot_create_task", { action: taskAction })
+          this.$t("task.cannot_create_task", { action: taskAction }),
         );
         return;
       }

@@ -23,6 +23,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Build and push the application image once per app/ content
         shell: bash
         env:
@@ -52,6 +54,32 @@ jobs:
         env:
           REPOBASE: ghcr.io/${{ github.repository_owner }}
         run: NODE_PATH="$RUNNER_TEMP/pdm-browser/node_modules" python3 tests/run_remote_ui_test.py "$(.github/scripts/app-image)"
+      # These tests also gate packaging and automatic catalog promotion, rather
+      # than relying only on the separate PR validation workflow.
+      - name: Install and build the module settings UI
+        working-directory: ui
+        run: |
+          corepack enable
+          yarn install --immutable
+          yarn lint
+          yarn test:stack
+          yarn build
+      - name: Extract the NS8 host stylesheet without running the image
+        shell: bash
+        env:
+          NS8_CORE_IMAGE: ghcr.io/nethserver/core:latest@sha256:91f910e7e247d5806ce63abc54914edd59558b0bd7669a2337b678c295f3b5c6
+        run: |
+          set -Eeuo pipefail
+          id="$(podman create --entrypoint /bin/true --image-volume=ignore "$NS8_CORE_IMAGE")"
+          trap 'podman rm -f "$id" >/dev/null 2>&1 || true' EXIT
+          podman cp "$id:/var/lib/nethserver/cluster/ui/css/core.css" "$RUNNER_TEMP/ns8-core.css"
+      - name: Gate publication on production and development module UI browsers
+        working-directory: ui
+        env:
+          NS8_CORE_CSS: ${{ runner.temp }}/ns8-core.css
+        run: |
+          yarn test:e2e
+          yarn test:e2e:dev
 
   # A pushed tag whose image already exists, such as the release tag that
   # publish-catalog-version creates, must not rebuild and replace the tested

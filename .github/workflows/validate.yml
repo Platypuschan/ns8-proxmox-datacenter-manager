@@ -133,20 +133,22 @@ jobs:
   ui:
     name: UI lint and build
     runs-on: ubuntu-latest
+    env:
+      NS8_CORE_IMAGE: ghcr.io/nethserver/core:latest@sha256:91f910e7e247d5806ce63abc54914edd59558b0bd7669a2337b678c295f3b5c6
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-
-      - name: Enable Corepack
-        run: corepack enable
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           # Keep in sync with NODE_IMAGE in build-images.sh
           node-version: "24.22.2"
-          cache: yarn
-          cache-dependency-path: ui/yarn.lock
+
+      - name: Enable the project-pinned Yarn after selecting Node
+        run: corepack enable
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -158,4 +160,28 @@ jobs:
 
       - name: Build
         run: yarn build
+        working-directory: ui
+
+      - name: Verify all requested dependency majors
+        run: yarn test:stack
+        working-directory: ui
+
+      - name: Extract the real NS8 host stylesheet without executing its image
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          id="$(podman create --entrypoint /bin/true --image-volume=ignore "$NS8_CORE_IMAGE")"
+          trap 'podman rm -f "$id" >/dev/null 2>&1 || true' EXIT
+          podman cp "$id:/var/lib/nethserver/cluster/ui/css/core.css" "$RUNNER_TEMP/ns8-core.css"
+
+      - name: Install Chromium
+        run: yarn playwright install --with-deps chromium
+        working-directory: ui
+
+      - name: Test production UI against the host CSS and fixture API
+        run: NS8_CORE_CSS="$RUNNER_TEMP/ns8-core.css" yarn test:e2e
+        working-directory: ui
+
+      - name: Test development UI and framework diagnostics
+        run: NS8_CORE_CSS="$RUNNER_TEMP/ns8-core.css" yarn test:e2e:dev
         working-directory: ui

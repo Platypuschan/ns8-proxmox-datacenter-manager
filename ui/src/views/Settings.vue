@@ -3,7 +3,7 @@
   SPDX-License-Identifier: GPL-3.0-or-later
 -->
 <template>
-  <cv-grid fullWidth>
+  <cv-grid full-width>
     <cv-row>
       <cv-column class="page-title">
         <h2>{{ $t("settings.title") }}</h2>
@@ -15,7 +15,7 @@
           kind="error"
           :title="$t('action.get-configuration')"
           :description="error.getConfiguration"
-          :showCloseButton="false"
+          :show-close-button="false"
         />
       </cv-column>
     </cv-row>
@@ -24,47 +24,40 @@
         <cv-tile light>
           <cv-form @submit.prevent="configureModule">
             <cv-text-input
+              ref="host"
+              v-model.trim="host"
               :label="$t('settings.pdm_fqdn')"
               placeholder="pdm.example.org"
-              v-model.trim="host"
               class="mg-bottom"
-              :invalid-message="$t(error.host)"
+              :invalid-message="tKey(error.host)"
               :disabled="loading.getConfiguration || loading.configureModule"
-              ref="host"
             >
             </cv-text-input>
             <cv-toggle
+              v-model="isLetsEncryptEnabled"
               value="letsEncrypt"
               :label="$t('settings.lets_encrypt')"
-              v-model="isLetsEncryptEnabled"
               :disabled="loading.getConfiguration || loading.configureModule"
               class="mg-bottom"
             >
-              <template slot="text-left">{{
-                $t("settings.disabled")
-              }}</template>
-              <template slot="text-right">{{
-                $t("settings.enabled")
-              }}</template>
+              <template #text-left>{{ $t("settings.disabled") }}</template>
+              <template #text-right>{{ $t("settings.enabled") }}</template>
             </cv-toggle>
             <cv-toggle
+              v-model="isHttpToHttpsEnabled"
               value="httpToHttps"
               :label="$t('settings.http_to_https')"
-              v-model="isHttpToHttpsEnabled"
               :disabled="loading.getConfiguration || loading.configureModule"
               class="mg-bottom"
             >
-              <template slot="text-left">{{
-                $t("settings.disabled")
-              }}</template>
-              <template slot="text-right">{{
-                $t("settings.enabled")
-              }}</template>
+              <template #text-left>{{ $t("settings.disabled") }}</template>
+              <template #text-right>{{ $t("settings.enabled") }}</template>
             </cv-toggle>
             <cv-text-input
+              ref="admin_password"
+              v-model="adminPassword"
               :label="$t('settings.admin_password')"
               type="password"
-              v-model="adminPassword"
               autocomplete="new-password"
               password-hide-label="Hide"
               password-show-label="Show"
@@ -76,7 +69,6 @@
               :invalid-message="error.admin_password"
               :disabled="loading.getConfiguration || loading.configureModule"
               class="mg-bottom"
-              ref="admin_password"
             >
             </cv-text-input>
             <div class="mg-bottom">
@@ -100,7 +92,7 @@
                   kind="error"
                   :title="$t('action.configure-module')"
                   :description="error.configureModule"
-                  :showCloseButton="false"
+                  :show-close-button="false"
                 />
               </cv-column>
             </cv-row>
@@ -113,6 +105,7 @@
             >
             <NsButton
               v-if="savedHost"
+              type="button"
               kind="secondary"
               class="mg-left"
               :icon="Launch20"
@@ -129,7 +122,8 @@
 
 <script>
 import to from "await-to-js";
-import Launch20 from "@carbon/icons-vue/es/launch/20";
+import { icons } from "../ns8/icons";
+const { Launch20 } = icons;
 import { mapState } from "vuex";
 import {
   QueryParamService,
@@ -137,7 +131,7 @@ import {
   TaskService,
   IconService,
   PageTitleService,
-} from "@nethserver/ns8-ui-lib";
+} from "../ns8";
 
 export default {
   name: "Settings",
@@ -220,17 +214,10 @@ export default {
       const taskAction = "get-configuration";
       const eventId = this.getUuid();
 
-      // register to task error
-      this.core.$root.$once(
-        `${taskAction}-aborted-${eventId}`,
-        this.getConfigurationAborted
-      );
-
-      // register to task completion
-      this.core.$root.$once(
-        `${taskAction}-completed-${eventId}`,
-        this.getConfigurationCompleted
-      );
+      this.subscribeTask(taskAction, eventId, {
+        aborted: this.getConfigurationAborted,
+        completed: this.getConfigurationCompleted,
+      });
 
       const res = await to(
         this.createModuleTaskForApp(this.instanceName, {
@@ -240,7 +227,7 @@ export default {
             isNotificationHidden: true,
             eventId,
           },
-        })
+        }),
       );
       const err = res[0];
 
@@ -325,23 +312,12 @@ export default {
       const taskAction = "configure-module";
       const eventId = this.getUuid();
 
-      // register to task error
-      this.core.$root.$once(
-        `${taskAction}-aborted-${eventId}`,
-        this.configureModuleAborted
-      );
+      this.subscribeTask(taskAction, eventId, {
+        aborted: this.configureModuleAborted,
+        "validation-failed": this.configureModuleValidationFailed,
+        completed: this.configureModuleCompleted,
+      });
 
-      // register to task validation
-      this.core.$root.$once(
-        `${taskAction}-validation-failed-${eventId}`,
-        this.configureModuleValidationFailed
-      );
-
-      // register to task completion
-      this.core.$root.$once(
-        `${taskAction}-completed-${eventId}`,
-        this.configureModuleCompleted
-      );
       const res = await to(
         this.createModuleTaskForApp(this.instanceName, {
           action: taskAction,
@@ -357,7 +333,7 @@ export default {
             description: this.$t("settings.configuring"),
             eventId,
           },
-        })
+        }),
       );
       const err = res[0];
 

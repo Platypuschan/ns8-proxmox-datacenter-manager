@@ -47,7 +47,7 @@
     },
     {
       "description": "Keep fixture and packaged-WASM browser runners aligned",
-      "matchPackageNames": ["playwright"],
+      "matchPackageNames": ["playwright", "@playwright/test"],
       "groupName": "Playwright browser tests"
     },
     {

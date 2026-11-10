@@ -2,62 +2,59 @@
 // Copyright (C) 2023 Nethesis S.r.l.
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-import Vue from "vue";
+import { createApp } from "vue";
 import App from "./App.vue";
 import router from "./router";
 import store from "./store";
-
-import CarbonComponentsVue from "@carbon/vue";
-Vue.use(CarbonComponentsVue);
+import { loadLanguage } from "./i18n";
+import { createI18n } from "vue-i18n";
+import { registerCarbonComponents } from "./carbon";
+import * as ns8 from "./ns8";
 
 import axios from "axios";
-axios.defaults.timeout = 10000;
 import VueAxios from "vue-axios";
-Vue.use(VueAxios, axios);
-
-import ns8Lib from "@nethserver/ns8-ui-lib";
-Vue.use(ns8Lib);
-
-import VueDateFns from "vue-date-fns";
-Vue.use(VueDateFns);
-
 import LottieAnimation from "lottie-web-vue";
-Vue.use(LottieAnimation);
-
 import vueDebounce from "vue-debounce";
-Vue.use(vueDebounce);
 
-// filters
-import { Filters } from "@nethserver/ns8-ui-lib";
-for (const f in Filters) {
-  Vue.filter(f, Filters[f]);
-}
-
-Vue.config.productionTip = false;
-
-// i18n
-import VueI18n from "vue-i18n";
-import { loadLanguage } from "./i18n";
+axios.defaults.timeout = 10000;
 
 loadI18n();
 
 async function loadI18n() {
   const navigatorLang = navigator.language.substring(0, 2);
-  Vue.use(VueI18n);
-  // Load English as fallback for keys missing in partial translations
-  const i18n = new VueI18n({ fallbackLocale: "en", silentFallbackWarn: true });
+  const messages = await loadLanguage(navigatorLang);
   const fallbackMessages = await loadLanguage("en");
-  i18n.setLocaleMessage("en", fallbackMessages.default);
-  if (navigatorLang !== "en") {
-    const messages = await loadLanguage(navigatorLang);
-    i18n.setLocaleMessage(navigatorLang, messages.default);
-  }
-  i18n.locale = navigatorLang;
+  const i18n = createI18n({
+    legacy: false,
+    globalInjection: true,
+    locale: navigatorLang,
+    fallbackLocale: "en",
+    // the NS8 core owns the UI language; missing keys are not worth a warning
+    missingWarn: false,
+    fallbackWarn: false,
+    messages: {
+      en: fallbackMessages.default,
+      [navigatorLang]: messages.default,
+    },
+  });
 
-  new Vue({
-    router,
-    store,
-    i18n,
-    render: (h) => h(App),
-  }).$mount("#ns8-app");
+  const app = createApp(App);
+  registerCarbonComponents(app);
+  for (const [name, component] of Object.entries(ns8)) {
+    if (name.startsWith("Ns")) app.component(name, component);
+  }
+  app.use(VueAxios, axios);
+  app.component("LottieAnimation", LottieAnimation);
+  app.directive("debounce", vueDebounce({ lock: true }));
+  app.use(router);
+  app.use(store);
+  app.use(i18n);
+  // Vue 2 replaced the #ns8-app boot loader; Vue 3 mounts *into* the target.
+  // Swap the loader for a plain container so App.vue's own #ns8-app root is
+  // the only one and the loader styles (height, background, centered text)
+  // do not leak into the app.
+  const loader = document.getElementById("ns8-app");
+  const container = document.createElement("div");
+  loader.replaceWith(container);
+  app.mount(container);
 }

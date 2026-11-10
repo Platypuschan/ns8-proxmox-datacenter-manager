@@ -9,7 +9,7 @@
 </template>
 
 <script>
-import AppSideMenuContent from "@/components/AppSideMenuContent";
+import AppSideMenuContent from "@/components/AppSideMenuContent.vue";
 
 export default {
   name: "AppSideMenu",

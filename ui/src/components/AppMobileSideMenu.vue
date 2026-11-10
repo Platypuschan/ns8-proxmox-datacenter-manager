@@ -14,7 +14,8 @@
 </template>
 
 <script>
-import AppSideMenuContent from "@/components/AppSideMenuContent";
+import bus from "@/ns8/events";
+import AppSideMenuContent from "@/components/AppSideMenuContent.vue";
 
 export default {
   name: "AppMobileSideMenu",
@@ -26,8 +27,8 @@ export default {
     };
   },
   created() {
-    // register to logout event
-    this.$root.$on("toggleMobileSideMenu", this.toggleMobileSideMenu);
+    // register to the toggle event
+    bus.on("toggleMobileSideMenu", this.toggleMobileSideMenu);
   },
   mounted() {
     // prevent glitch: click-outside is incorrectly detected when mobile side menu appears
@@ -35,9 +36,9 @@ export default {
       this.isClickOutsideEnabled = true;
     }, 200);
   },
-  beforeDestroy() {
+  beforeUnmount() {
     // remove event listener
-    this.$root.$off("toggleMobileSideMenu", this.toggleMobileSideMenu);
+    bus.off("toggleMobileSideMenu", this.toggleMobileSideMenu);
   },
   methods: {
     toggleMobileSideMenu() {
@@ -70,7 +71,7 @@ export default {
   transition: all 0.3s ease;
 }
 
-.slide-menu-enter,
+.slide-menu-enter-from,
 .slide-menu-leave-to {
   transform: translateX(-$side-menu-width);
 }

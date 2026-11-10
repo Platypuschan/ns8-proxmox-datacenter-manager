@@ -3,7 +3,7 @@
   SPDX-License-Identifier: GPL-3.0-or-later
 -->
 <template>
-  <cv-grid fullWidth>
+  <cv-grid full-width>
     <cv-row>
       <cv-column class="page-title">
         <h2>{{ $t("status.title") }}</h2>
@@ -15,7 +15,7 @@
           kind="error"
           :title="$t('action.get-status')"
           :description="error.getStatus"
-          :showCloseButton="false"
+          :show-close-button="false"
         />
       </cv-column>
     </cv-row>
@@ -25,7 +25,7 @@
           kind="error"
           :title="$t('action.list-backup-repositories')"
           :description="error.listBackupRepositories"
-          :showCloseButton="false"
+          :show-close-button="false"
         />
       </cv-column>
     </cv-row>
@@ -35,7 +35,7 @@
           kind="error"
           :title="$t('action.list-backups')"
           :description="error.listBackups"
-          :showCloseButton="false"
+          :show-close-button="false"
         />
       </cv-column>
     </cv-row>
@@ -54,7 +54,7 @@
         <NsInfoCard
           light
           :title="installationNodeTitle"
-          :titleTooltip="installationNodeTitleTooltip"
+          :title-tooltip="installationNodeTitleTooltip"
           :description="$t('status.installation_node')"
           :icon="Chip32"
           :loading="loading.getStatus"
@@ -64,25 +64,25 @@
       <cv-column :md="4" :max="4">
         <NsBackupCard
           :title="core.$t('backup.title')"
-          :noBackupMessage="core.$t('backup.no_backup_configured')"
-          :goToBackupLabel="core.$t('backup.go_to_backup')"
-          :repositoryLabel="core.$t('backup.repository')"
-          :statusLabel="core.$t('common.status')"
-          :statusSuccessLabel="core.$t('common.success')"
-          :statusNotRunLabel="core.$t('backup.backup_has_not_run_yet')"
-          :statusErrorLabel="core.$t('error.error')"
-          :completedLabel="core.$t('backup.completed')"
-          :durationLabel="core.$t('backup.duration')"
-          :totalSizeLabel="core.$t('backup.total_size')"
-          :totalFileCountLabel="core.$t('backup.total_file_count')"
-          :backupDisabledLabel="core.$t('common.disabled')"
-          :showMoreLabel="core.$t('common.show_more')"
-          :moduleId="instanceName"
-          :moduleUiName="instanceLabel"
+          :no-backup-message="core.$t('backup.no_backup_configured')"
+          :go-to-backup-label="core.$t('backup.go_to_backup')"
+          :repository-label="core.$t('backup.repository')"
+          :status-label="core.$t('common.status')"
+          :status-success-label="core.$t('common.success')"
+          :status-not-run-label="core.$t('backup.backup_has_not_run_yet')"
+          :status-error-label="core.$t('error.error')"
+          :completed-label="core.$t('backup.completed')"
+          :duration-label="core.$t('backup.duration')"
+          :total-size-label="core.$t('backup.total_size')"
+          :total-file-count-label="core.$t('backup.total_file_count')"
+          :backup-disabled-label="core.$t('common.disabled')"
+          :show-more-label="core.$t('common.show_more')"
+          :module-id="instanceName"
+          :module-ui-name="instanceLabel"
           :repositories="backupRepositories"
           :backups="backups"
           :loading="loading.listBackupRepositories || loading.listBackups"
-          :coreContext="core"
+          :core-context="core"
           light
         />
       </cv-column>
@@ -94,10 +94,10 @@
               name: instanceLabel || instanceName,
             })
           "
-          :buttonLabel="core.$t('system_logs.card_button_label')"
+          :button-label="core.$t('system_logs.card_button_label')"
           :router="core.$router"
           context="module"
-          :moduleId="instanceName"
+          :module-id="instanceName"
           light
         />
       </cv-column>
@@ -105,7 +105,7 @@
     <!-- services -->
     <cv-row>
       <cv-column class="page-subtitle">
-        <h4>{{ $tc("status.services", 2) }}</h4>
+        <h4>{{ $t("status.services", 2) }}</h4>
       </cv-column>
     </cv-row>
     <cv-row v-if="!loading.getStatus">
@@ -115,8 +115,8 @@
         </cv-tile>
       </cv-column>
       <cv-column
-        v-else
         v-for="(service, index) in status.services"
+        v-else
         :key="index"
         :md="4"
         :max="4"
@@ -124,7 +124,7 @@
         <NsSystemdServiceCard
           light
           class="min-height-card"
-          :serviceName="service.name"
+          :service-name="service.name"
           :active="service.active"
           :failed="service.failed"
           :enabled="service.enabled"
@@ -145,7 +145,7 @@
     <!-- images -->
     <cv-row>
       <cv-column class="page-subtitle">
-        <h4>{{ $tc("status.app_images", 2) }}</h4>
+        <h4>{{ $t("status.app_images", 2) }}</h4>
       </cv-column>
     </cv-row>
     <cv-row>
@@ -158,7 +158,7 @@
             >
             </NsEmptyState>
             <cv-structured-list v-else>
-              <template slot="headings">
+              <template #headings>
                 <cv-structured-list-heading>{{
                   $t("status.name")
                 }}</cv-structured-list-heading>
@@ -169,7 +169,7 @@
                   $t("status.created")
                 }}</cv-structured-list-heading>
               </template>
-              <template slot="items">
+              <template #items>
                 <cv-structured-list-item
                   v-for="(image, index) in status.images"
                   :key="index"
@@ -198,7 +198,7 @@
     <!-- volumes -->
     <cv-row>
       <cv-column class="page-subtitle">
-        <h4>{{ $tc("status.app_volumes", 2) }}</h4>
+        <h4>{{ $t("status.app_volumes", 2) }}</h4>
       </cv-column>
     </cv-row>
     <cv-row>
@@ -211,7 +211,7 @@
             >
             </NsEmptyState>
             <cv-structured-list v-else>
-              <template slot="headings">
+              <template #headings>
                 <cv-structured-list-heading>{{
                   $t("status.name")
                 }}</cv-structured-list-heading>
@@ -222,7 +222,7 @@
                   $t("status.created")
                 }}</cv-structured-list-heading>
               </template>
-              <template slot="items">
+              <template #items>
                 <cv-structured-list-item
                   v-for="(volume, index) in status.volumes"
                   :key="index"
@@ -260,7 +260,7 @@ import {
   IconService,
   UtilService,
   PageTitleService,
-} from "@nethserver/ns8-ui-lib";
+} from "../ns8";
 
 export default {
   name: "Status",
@@ -336,7 +336,7 @@ export default {
   mounted() {
     this.redirectTimeout = setTimeout(
       () => (this.isRedirectChecked = true),
-      200
+      200,
     );
   },
   beforeUnmount() {
@@ -353,17 +353,10 @@ export default {
       const taskAction = "get-status";
       const eventId = this.getUuid();
 
-      // register to task error
-      this.core.$root.$once(
-        `${taskAction}-aborted-${eventId}`,
-        this.getStatusAborted
-      );
-
-      // register to task completion
-      this.core.$root.$once(
-        `${taskAction}-completed-${eventId}`,
-        this.getStatusCompleted
-      );
+      this.subscribeTask(taskAction, eventId, {
+        aborted: this.getStatusAborted,
+        completed: this.getStatusCompleted,
+      });
 
       const res = await to(
         this.createModuleTaskForApp(this.instanceName, {
@@ -373,7 +366,7 @@ export default {
             isNotificationHidden: true,
             eventId,
           },
-        })
+        }),
       );
       const err = res[0];
 
@@ -399,17 +392,10 @@ export default {
       const taskAction = "list-backup-repositories";
       const eventId = this.getUuid();
 
-      // register to task error
-      this.core.$root.$once(
-        `${taskAction}-aborted-${eventId}`,
-        this.listBackupRepositoriesAborted
-      );
-
-      // register to task completion
-      this.core.$root.$once(
-        `${taskAction}-completed-${eventId}`,
-        this.listBackupRepositoriesCompleted
-      );
+      this.subscribeTask(taskAction, eventId, {
+        aborted: this.listBackupRepositoriesAborted,
+        completed: this.listBackupRepositoriesCompleted,
+      });
 
       const res = await to(
         this.createClusterTaskForApp({
@@ -419,7 +405,7 @@ export default {
             isNotificationHidden: true,
             eventId,
           },
-        })
+        }),
       );
       const err = res[0];
 
@@ -437,7 +423,7 @@ export default {
     },
     listBackupRepositoriesCompleted(taskContext, taskResult) {
       let backupRepositories = taskResult.output.repositories.sort(
-        this.sortByProperty("name")
+        this.sortByProperty("name"),
       );
       this.backupRepositories = backupRepositories;
       this.loading.listBackupRepositories = false;
@@ -449,17 +435,10 @@ export default {
       const taskAction = "list-backups";
       const eventId = this.getUuid();
 
-      // register to task error
-      this.core.$root.$once(
-        `${taskAction}-aborted-${eventId}`,
-        this.listBackupsAborted
-      );
-
-      // register to task completion
-      this.core.$root.$once(
-        `${taskAction}-completed-${eventId}`,
-        this.listBackupsCompleted
-      );
+      this.subscribeTask(taskAction, eventId, {
+        aborted: this.listBackupsAborted,
+        completed: this.listBackupsCompleted,
+      });
 
       const res = await to(
         this.createClusterTaskForApp({
@@ -469,7 +448,7 @@ export default {
             isNotificationHidden: true,
             eventId,
           },
-        })
+        }),
       );
       const err = res[0];
 
@@ -492,7 +471,7 @@ export default {
       // get repository name
       for (const backup of backups) {
         const repo = this.backupRepositories.find(
-          (r) => r.id == backup.repository
+          (r) => r.id == backup.repository,
         );
 
         if (repo) {

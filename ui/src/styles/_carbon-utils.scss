@@ -1,7 +1,10 @@
-@import "carbon-components/scss/globals/scss/vendor/@carbon/type/scss/font-family.scss";
-@import "carbon-components/scss/globals/scss/vendor/@carbon/layout/scss/breakpoint.scss";
-@import "carbon-components/scss/globals/scss/typography.scss";
-@import "carbon-components/scss/globals/scss/vars.scss";
+// Carbon 11 supplies tokens only. Carbon Vue still renders bx-- markup;
+// the NS8 host stylesheet remains the owner of those component styles.
+@forward "carbon-components/scss/spacing";
+@use "carbon-components/scss/theme" as theme;
+$danger-01: theme.$support-error;
+$interactive-01: theme.$interactive;
+$support-02: theme.$support-success;
 
 $breakpoint-x-large: 1311px;
 $breakpoint-large: 1055px;

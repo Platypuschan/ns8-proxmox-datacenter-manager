@@ -15,24 +15,24 @@
 
     <cv-side-nav-items>
       <cv-side-nav-link
-        @click="goToAppPage(instanceName, 'status')"
         :class="{ 'current-page': isLinkActive('status') }"
+        @click="goToAppPage(instanceName, 'status')"
       >
-        <template v-slot:nav-icon><Activity20 /></template>
+        <template #nav-icon><Activity20 /></template>
         <span>{{ $t("status.title") }}</span>
       </cv-side-nav-link>
       <cv-side-nav-link
-        @click="goToAppPage(instanceName, 'settings')"
         :class="{ 'current-page': isLinkActive('settings') }"
+        @click="goToAppPage(instanceName, 'settings')"
       >
-        <template v-slot:nav-icon><Settings20 /></template>
+        <template #nav-icon><Settings20 /></template>
         <span>{{ $t("settings.title") }}</span>
       </cv-side-nav-link>
       <cv-side-nav-link
-        @click="goToAppPage(instanceName, 'about')"
         :class="{ 'current-page': isLinkActive('about') }"
+        @click="goToAppPage(instanceName, 'about')"
       >
-        <template v-slot:nav-icon><Information20 /></template>
+        <template #nav-icon><Information20 /></template>
         <span>{{ $t("about.title") }}</span>
       </cv-side-nav-link>
     </cv-side-nav-items>
@@ -44,7 +44,8 @@ import Settings20 from "@carbon/icons-vue/es/settings/20";
 import Information20 from "@carbon/icons-vue/es/information/20";
 import Activity20 from "@carbon/icons-vue/es/activity/20";
 import { mapState } from "vuex";
-import { QueryParamService, UtilService } from "@nethserver/ns8-ui-lib";
+import bus from "@/ns8/events";
+import { QueryParamService, UtilService } from "@/ns8";
 
 export default {
   name: "AppSideMenuContent",
@@ -64,11 +65,11 @@ export default {
   },
   created() {
     // register to appNavigation event
-    this.$root.$on("appNavigation", this.onAppNavigation);
+    bus.on("appNavigation", this.onAppNavigation);
   },
-  beforeDestroy() {
+  beforeUnmount() {
     // remove event listener
-    this.$root.$off("appNavigation");
+    bus.off("appNavigation", this.onAppNavigation);
   },
   methods: {
     isLinkActive(page) {

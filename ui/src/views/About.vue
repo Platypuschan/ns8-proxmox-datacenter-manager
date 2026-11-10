@@ -3,7 +3,7 @@
   SPDX-License-Identifier: GPL-3.0-or-later
 -->
 <template>
-  <cv-grid fullWidth>
+  <cv-grid full-width>
     <cv-row>
       <cv-column class="page-title">
         <h2>{{ $t("about.title") }}</h2>
@@ -16,7 +16,7 @@
           kind="error"
           :title="$t('error.cannot_retrieve_installed_modules')"
           :description="error.version"
-          :showCloseButton="false"
+          :show-close-button="false"
         />
       </cv-column>
     </cv-row>
@@ -34,7 +34,7 @@
               kind="error"
               :title="$t('error.cannot_retrieve_module_info')"
               :description="error.moduleInfo"
-              :showCloseButton="false"
+              :show-close-button="false"
             />
           </div>
           <div v-else>
@@ -162,7 +162,7 @@ import {
   TaskService,
   UtilService,
   PageTitleService,
-} from "@nethserver/ns8-ui-lib";
+} from "../ns8";
 import appMetadata from "../../public/metadata.json";
 import defaultLogo from "@/assets/module_default_logo.png";
 
@@ -228,17 +228,10 @@ export default {
       const taskAction = "list-installed-modules";
       const eventId = this.getUuid();
 
-      // register to task error
-      this.core.$root.$once(
-        `${taskAction}-aborted-${eventId}`,
-        this.listInstalledModulesAborted
-      );
-
-      // register to task completion
-      this.core.$root.$once(
-        `${taskAction}-completed-${eventId}`,
-        this.listInstalledModulesCompleted
-      );
+      this.subscribeTask(taskAction, eventId, {
+        aborted: this.listInstalledModulesAborted,
+        completed: this.listInstalledModulesCompleted,
+      });
 
       const res = await to(
         this.createClusterTaskForApp({
@@ -248,7 +241,7 @@ export default {
             isNotificationHidden: true,
             eventId,
           },
-        })
+        }),
       );
       const err = res[0];
 

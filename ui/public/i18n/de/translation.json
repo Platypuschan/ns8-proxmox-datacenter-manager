@@ -29,7 +29,7 @@
     "enabled": "Aktiviert",
     "disabled": "Deaktiviert",
     "admin_password": "Administratorpasswort",
-    "admin_password_help_new": "Passwort für den Benutzer root, Realm „Linux PAM“ (Anmeldung root@pam). Für die erste Konfiguration erforderlich.",
+    "admin_password_help_new": "Passwort für den Benutzer root, Realm „Linux PAM“ (Anmeldung root{'@'}pam). Für die erste Konfiguration erforderlich.",
     "admin_password_help_set": "Ein Passwort ist gesetzt. Leer lassen, um es zu behalten; zum Ersetzen ein neues eingeben. Das Modul setzt es bei jedem Start, daher sind Änderungen in der Oberfläche des Proxmox Datacenter Managers nicht dauerhaft.",
     "configuring": "Konfiguriere",
     "instance_configuration": "Proxmox Datacenter Manager konfigurieren",

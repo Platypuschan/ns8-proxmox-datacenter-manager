@@ -3,7 +3,7 @@
 //
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
-import vue from "@vitejs/plugin-vue2";
+import vue from "@vitejs/plugin-vue";
 
 const imageFile = /\.(png|jpe?g|gif|svg|webp)$/i;
 
@@ -16,14 +16,6 @@ export default defineConfig({
       {
         find: "@",
         replacement: fileURLToPath(new URL("./src", import.meta.url)),
-      },
-      // ns8-ui-lib imports Node "crypto" for uuid; Vite would replace it
-      // with an empty stub and break every task call (see src/shims/crypto.js)
-      {
-        find: /^crypto$/,
-        replacement: fileURLToPath(
-          new URL("./src/shims/crypto.js", import.meta.url)
-        ),
       },
     ],
     // Components are imported without the .vue extension
