@@ -28,3 +28,24 @@ class DiagnosticTests(unittest.TestCase):
         assert formatter is not None
         self.assertEqual(formatter("safe", [""]), "safe")
         self.assertLessEqual(len(formatter("x" * 20000, [])), 12000)
+
+    def test_fixture_matches_production_hostname_and_owns_dns_search(self):
+        factory = getattr(runner, "container_command", None)
+        self.assertIsNotNone(factory, "Fixture must own its certificate identity inputs")
+        assert factory is not None
+        command = factory("owned-fixture", "example.invalid/image:test")
+        hostname = command[command.index("--hostname") + 1]
+        search = command[command.index("--dns-search") + 1]
+        self.assertEqual(hostname, "pdm")
+        self.assertIn("--hostname " + hostname, (ROOT / "imageroot/systemd/user/pdm.service").read_text())
+        self.assertEqual(search, "pdm-test.invalid")
+        self.assertLessEqual(len(hostname + "." + search), 64)
+
+    def test_fixture_keeps_loopback_binding_and_hash_in_environment_only(self):
+        factory = getattr(runner, "container_command", None)
+        self.assertIsNotNone(factory)
+        assert factory is not None
+        command = factory("owned-fixture", "example.invalid/image:test")
+        self.assertEqual(command[command.index("-p") + 1], "127.0.0.1::8443")
+        self.assertEqual(command[command.index("-e") + 1], "PASSWORD_HASH")
+        self.assertEqual(command[-1], "example.invalid/image:test")
