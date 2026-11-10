@@ -76,6 +76,12 @@ test("Open PDM uses the saved hostname without submitting unsaved changes", asyn
       window.__opened = args;
     };
   });
+  await expect(
+    frame.getByRole("button", {
+      name: "Open Proxmox Datacenter Manager",
+      exact: true,
+    }),
+  ).toHaveAttribute("type", "button");
   await frame
     .getByRole("button", {
       name: "Open Proxmox Datacenter Manager",

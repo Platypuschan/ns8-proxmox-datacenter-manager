@@ -105,6 +105,7 @@
             >
             <NsButton
               v-if="savedHost"
+              type="button"
               kind="secondary"
               class="mg-left"
               :icon="Launch20"
