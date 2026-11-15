@@ -72,6 +72,7 @@
     {
       "matchManagers": ["npm"],
       "matchFileNames": ["ui/package.json"],
+      "matchPackageNames": ["!playwright", "!@playwright/test"],
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "NS8 UI non-major dependencies"
     },
